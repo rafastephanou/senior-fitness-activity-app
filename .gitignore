@@ -37,3 +37,10 @@ lerna-debug.log*
 # Vite / cache
 .vite/
 *.tsbuildinfo
+
+# Python / backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
