@@ -1,21 +1,12 @@
 import { useState } from "react";
 import { Heart, Shield, Eye, EyeOff, ChevronLeft } from "lucide-react";
+import { api, setToken, ApiError, type SessionUser } from "../../lib/api";
 
 type Role = "senior" | "tutor";
 
 interface Props {
-  onLogin: (role: Role, name: string) => void;
+  onLogin: (user: SessionUser, token: string) => void;
 }
-
-const seniorAccounts = [
-  { email: "maria@exemplo.com", password: "123456", name: "Maria Silva" },
-  { email: "jose@exemplo.com", password: "123456", name: "José Santos" },
-];
-
-const tutorAccounts = [
-  { email: "ana@exemplo.com", password: "admin123", name: "Ana Tutora" },
-  { email: "carlos@exemplo.com", password: "admin123", name: "Carlos Supervisor" },
-];
 
 function LoginForm({
   role,
@@ -24,7 +15,7 @@ function LoginForm({
   onBackToSenior,
 }: {
   role: Role;
-  onLogin: (role: Role, name: string) => void;
+  onLogin: (user: SessionUser, token: string) => void;
   onSwitchToTutor: () => void;
   onBackToSenior: () => void;
 }) {
@@ -32,19 +23,30 @@ function LoginForm({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const isTutor = role === "tutor";
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError("");
     if (!email.trim() || !password) {
       setError("Preencha o e-mail e a senha para continuar.");
       return;
     }
-    const accounts = isTutor ? tutorAccounts : seniorAccounts;
-    const match = accounts.find((a) => a.email === email.trim());
-    const name = match?.name ?? email.trim().split("@")[0];
-    onLogin(role, name);
+    setLoading(true);
+    try {
+      const { access_token, user } = await api.login(email.trim(), password);
+      setToken(access_token);
+      onLogin(user, access_token);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível conectar ao servidor. Tente novamente.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -144,10 +146,11 @@ function LoginForm({
         {/* Primary action */}
         <button
           onClick={handleLogin}
-          className={`w-full py-5 rounded-2xl font-semibold text-white shadow-sm active:scale-[0.98] transition-all mt-1 ${isTutor ? "bg-[#4A52B2] hover:opacity-90" : "bg-primary hover:opacity-90"}`}
+          disabled={loading}
+          className={`w-full py-5 rounded-2xl font-semibold text-white shadow-sm active:scale-[0.98] transition-all mt-1 disabled:opacity-60 ${isTutor ? "bg-[#4A52B2] hover:opacity-90" : "bg-primary hover:opacity-90"}`}
           style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "1.15rem" }}
         >
-          Entrar
+          {loading ? "Entrando..." : "Entrar"}
         </button>
 
         {/* Secondary: switch to tutor */}
