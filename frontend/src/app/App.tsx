@@ -13,9 +13,7 @@ import {
   Footprints,
   Shield,
   RotateCcw,
-  Plus,
   Search,
-  LogOut,
   Video,
   CalendarClock,
   X,
@@ -24,131 +22,42 @@ import {
 } from "lucide-react";
 import { LoginScreen } from "./components/LoginScreen";
 import { TutorApp } from "./components/TutorApp";
+import { api, getToken, setToken } from "../lib/api";
+import type {
+  SessionUser,
+  Exercise,
+  Message,
+  Friend,
+  FriendRequest,
+  Group,
+  GroupMemberEntry,
+} from "../lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type Role = "senior" | "tutor";
 type Tab = "exercises" | "friends" | "groups";
 
-interface Usuario {
-  id: number;
-  name: string;
-  initials: string;
-  isTutor?: boolean;
+// Maps an exercise's logical icon name (from the API) to a lucide icon.
+function ExerciseIcon({ name, size = 22 }: { name: string; size?: number }) {
+  switch (name) {
+    case "heart":
+      return <Heart size={size} />;
+    case "rotate":
+      return <RotateCcw size={size} />;
+    case "footprints":
+      return <Footprints size={size} />;
+    case "wind":
+      return <Wind size={size} />;
+    case "shield":
+      return <Shield size={size} />;
+    case "star":
+      return <Star size={size} />;
+    default:
+      return <Dumbbell size={size} />;
+  }
 }
 
-interface Exercise {
-  id: number;
-  name: string;
-  category: string;
-  duration: number;
-  level: "Fácil" | "Moderado";
-  icon: React.ReactNode;
-  benefit: string;
-  steps: string[];
-  tip: string;
-}
-
-interface EventCard {
-  title: string;
-  activityType: string;
-  participants: number;
-  scheduledAt: string;
-  host: string;
-}
-
-interface Message {
-  id: number;
-  sender: "me" | "them";
-  text: string;
-  time: string;
-  senderName?: string;
-  isTutor?: boolean;
-  event?: EventCard;
-}
-
-interface Friend {
-  id: number;
-  name: string;
-  avatar: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  isTutor?: boolean;
-  messages: Message[];
-}
-
-type GroupMemberEntry = Pick<Usuario, "name" | "initials" | "isTutor">;
-
-interface Group {
-  id: number;
-  name: string;
-  emoji: string;
-  members: number;
-  memberList: GroupMemberEntry[];
-  lastMessage: string;
-  time: string;
-  unread: number;
-  hasLiveEvent?: boolean;
-  messages: Message[];
-}
-
-// ─── Data ────────────────────────────────────────────────────────────────────
-
-const exercises: Exercise[] = [
-  { id: 1, name: "Alongamento do Pescoço", category: "Alongamento", duration: 5, level: "Fácil", icon: <Heart size={22} />, benefit: "Alivia tensão e melhora mobilidade",
-    steps: ["Sente-se em uma cadeira com as costas eretas e os pés no chão.", "Incline lentamente a cabeça para a direita, levando a orelha em direção ao ombro. Segure por 10 segundos.", "Volte ao centro e repita para o lado esquerdo. Segure por 10 segundos.", "Gire suavemente a cabeça para a direita, olhando por cima do ombro. Segure por 10 segundos.", "Repita para o lado esquerdo. Faça 3 repetições de cada lado."],
-    tip: "Não force o pescoço. O movimento deve ser suave e sem dor." },
-  { id: 2, name: "Rotação dos Ombros", category: "Alongamento", duration: 8, level: "Fácil", icon: <RotateCcw size={22} />, benefit: "Solta os músculos e melhora postura",
-    steps: ["Sente-se ou fique em pé com os braços relaxados ao lado do corpo.", "Eleve os ombros em direção às orelhas e role-os para trás em um círculo largo.", "Faça 10 rotações para trás, devagar e com controle.", "Inverta a direção e faça 10 rotações para a frente.", "Ao final, sacuda os braços suavemente para relaxar."],
-    tip: "Mantenha a respiração constante durante todo o exercício." },
-  { id: 3, name: "Equilíbrio em Um Pé", category: "Equilíbrio", duration: 5, level: "Moderado", icon: <Footprints size={22} />, benefit: "Previne quedas e fortalece tornozelos",
-    steps: ["Fique em pé perto de uma parede ou cadeira para apoio de segurança.", "Com as mãos levemente apoiadas, levante o pé direito do chão, dobrando o joelho.", "Mantenha o equilíbrio por 10 a 30 segundos, olhando para um ponto fixo à frente.", "Abaixe o pé com cuidado e repita com o pé esquerdo.", "Faça 3 repetições para cada pé, aumentando o tempo gradualmente."],
-    tip: "Sempre tenha uma superfície de apoio por perto. Nunca feche os olhos durante este exercício." },
-  { id: 4, name: "Respiração Profunda", category: "Respiração", duration: 7, level: "Fácil", icon: <Wind size={22} />, benefit: "Reduz ansiedade e melhora oxigenação",
-    steps: ["Sente-se confortavelmente, com as costas eretas e as mãos sobre o colo.", "Feche os olhos e inspire lentamente pelo nariz contando até 4.", "Segure o ar por 2 segundos.", "Expire lentamente pela boca contando até 6, soltando todo o ar.", "Repita esse ciclo por 7 minutos, mantendo o ritmo tranquilo."],
-    tip: "Tente fazer este exercício pela manhã para começar o dia com calma." },
-  { id: 5, name: "Caminhada no Lugar", category: "Cardio", duration: 15, level: "Fácil", icon: <Footprints size={22} />, benefit: "Aquece o corpo e ativa a circulação",
-    steps: ["Fique em pé com os pés afastados na largura dos quadris, próximo a uma parede para segurança.", "Levante o joelho direito até a altura do quadril e abaixe. Repita com o esquerdo.", "Balance os braços naturalmente, como se estivesse caminhando de verdade.", "Mantenha um ritmo confortável por 15 minutos. Descanse 1 minuto se precisar.", "Ao terminar, respire fundo 3 vezes e caminhe devagar por 1 minuto para desaquecer."],
-    tip: "Use calçados confortáveis e antiderrapantes. Pare se sentir tontura." },
-  { id: 6, name: "Flexão dos Joelhos", category: "Força", duration: 10, level: "Moderado", icon: <Shield size={22} />, benefit: "Fortalece pernas e melhora sustentação",
-    steps: ["Fique em pé atrás de uma cadeira resistente, segurando o encosto com as duas mãos.", "Afaste os pés na largura dos ombros, com os dedos apontados levemente para fora.", "Dobre os joelhos lentamente, como se fosse sentar, descendo até sentir conforto (não passe 90°).", "Suba lentamente, contraindo os glúteos. Não trave os joelhos ao subir.", "Faça 3 séries de 10 repetições, descansando 1 minuto entre cada série."],
-    tip: "Os joelhos não devem ultrapassar a ponta dos pés. Vá devagar e com controle." },
-  { id: 7, name: "Alongamento das Costas", category: "Alongamento", duration: 8, level: "Fácil", icon: <Heart size={22} />, benefit: "Alivia dores lombares e relaxa a coluna",
-    steps: ["Sente-se no meio de uma cadeira firme, com os pés no chão e joelhos dobrados a 90°.", "Cruze os braços sobre o peito e incline o tronco para a frente, em direção às coxas.", "Segure por 10 segundos sentindo o alongamento nas costas.", "Volte lentamente à posição inicial usando os músculos abdominais.", "Repita 5 vezes. Para variar, incline levemente para os lados também."],
-    tip: "Se sentir dor aguda nas costas, pare imediatamente e consulte um médico." },
-  { id: 8, name: "Elevação dos Braços", category: "Força", duration: 10, level: "Fácil", icon: <Star size={22} />, benefit: "Fortalece ombros e melhora alcance",
-    steps: ["Sente-se com as costas eretas, pés no chão. Segure uma garrafa de água em cada mão (opcional).", "Com os braços ao lado do corpo, levante ambos os braços lateralmente até a altura dos ombros.", "Segure por 2 segundos na posição elevada e desça lentamente.", "Faça o mesmo movimento elevando os braços à frente do corpo.", "Faça 3 séries de 10 repetições de cada variação, descansando entre as séries."],
-    tip: "Comece sem peso. Adicione a garrafa d'água somente quando sentir facilidade." },
-];
-
-const initialFriends: Friend[] = [
-  { id: 1, name: "Maria Silva", avatar: "MS", lastMessage: "Fiz todos os exercícios hoje! 😊", time: "09:23", unread: 2, messages: [{ id: 1, sender: "them", text: "Bom dia! Tudo bem com você?", time: "09:10" }, { id: 2, sender: "me", text: "Bom dia Maria! Tudo ótimo, e você?", time: "09:15" }, { id: 3, sender: "them", text: "Fiz todos os exercícios hoje! 😊", time: "09:23" }] },
-  { id: 2, name: "José Santos", avatar: "JS", lastMessage: "Como você está se sentindo?", time: "Ontem", unread: 0, messages: [{ id: 1, sender: "them", text: "Oi! Fez os exercícios de ontem?", time: "16:40" }, { id: 2, sender: "me", text: "Fiz sim! Fiquei um pouco cansado mas valeu.", time: "16:55" }, { id: 3, sender: "them", text: "Como você está se sentindo?", time: "17:02" }] },
-  { id: 3, name: "Ana Oliveira", avatar: "AO", lastMessage: "Vamos fazer a caminhada juntas amanhã?", time: "Ontem", unread: 1, messages: [{ id: 1, sender: "me", text: "Ana, que tal a gente fazer os exercícios juntas?", time: "14:20" }, { id: 2, sender: "them", text: "Que ótima ideia!", time: "14:35" }, { id: 3, sender: "them", text: "Vamos fazer a caminhada juntas amanhã?", time: "14:36" }] },
-  { id: 4, name: "Roberto Lima", avatar: "RL", lastMessage: "Obrigado pela dica de exercício!", time: "Seg", unread: 0, messages: [{ id: 1, sender: "me", text: "Roberto, experimentou o alongamento das costas?", time: "10:00" }, { id: 2, sender: "them", text: "Sim! Ficou muito melhor.", time: "10:45" }, { id: 3, sender: "them", text: "Obrigado pela dica de exercício!", time: "10:46" }] },
-  { id: 5, name: "João Oliveira", avatar: "JO", isTutor: true, lastMessage: "Lembre-se de fazer os exercícios hoje! 💪", time: "08:15", unread: 1, messages: [{ id: 1, sender: "them", text: "Bom dia! Como você está se sentindo hoje?", time: "08:10" }, { id: 2, sender: "me", text: "Bom dia João! Estou bem, obrigada!", time: "08:13" }, { id: 3, sender: "them", text: "Lembre-se de fazer os exercícios hoje! 💪", time: "08:15" }] },
-];
-
-const initialGroups: Group[] = [
-  { id: 1, name: "Turma da Manhã", emoji: "🌅", members: 12, memberList: [{ name: "João Oliveira", initials: "JO", isTutor: true }, { name: "Maria Silva", initials: "MS" }, { name: "Ana Oliveira", initials: "AO" }, { name: "Roberto Lima", initials: "RL" }, { name: "Carmen Souza", initials: "CS" }, { name: "Lúcia Mendes", initials: "LM" }, { name: "Paulo Ferreira", initials: "PF" }, { name: "Beatriz Costa", initials: "BC" }, { name: "Antônio Ramos", initials: "AR" }, { name: "Helena Vieira", initials: "HV" }, { name: "Francisco Lima", initials: "FL" }, { name: "Tereza Neves", initials: "TN" }], lastMessage: "João (Tutor): Ótimo trabalho hoje!", time: "08:20", unread: 5, hasLiveEvent: true, messages: [{ id: 1, sender: "them", text: "Bom dia turma! Prontos para os exercícios?", time: "08:00", senderName: "Carmen" }, { id: 2, sender: "me", text: "Prontos! Vamos lá! 💪", time: "08:04" }, { id: 3, sender: "them", text: "Bom dia a todos!", time: "08:07", senderName: "Carmen" }, { id: 4, sender: "them", text: "Ótimo trabalho hoje! Continuem assim, estou acompanhando o progresso de vocês 🌟", time: "08:20", senderName: "João Oliveira", isTutor: true },
-      { id: 5, sender: "them", text: "", time: "08:25", senderName: "João Oliveira", isTutor: true, event: { title: "Alongamento Matinal em Grupo", activityType: "Alongamento", participants: 8, scheduledAt: "Hoje às 09:00", host: "João Oliveira" } }] },
-  { id: 2, name: "Saúde em Família", emoji: "❤️", members: 8, memberList: [{ name: "João Oliveira", initials: "JO", isTutor: true }, { name: "José Santos", initials: "JS" }, { name: "Roberto Lima", initials: "RL" }, { name: "Fernanda Santos", initials: "FS" }, { name: "Ricardo Oliveira", initials: "RO" }, { name: "Mariana Costa", initials: "MC" }, { name: "Sandra Lima", initials: "SL" }, { name: "Carlos Mendes", initials: "CM" }], lastMessage: "Filha: Mamãe, lembrou de beber água?", time: "11:30", unread: 1, messages: [{ id: 1, sender: "them", text: "Mamãe fez os exercícios hoje?", time: "10:00" }, { id: 2, sender: "me", text: "Fiz sim minha filha! Tô muito bem.", time: "10:30" }, { id: 3, sender: "them", text: "Filha: Mamãe, lembrou de beber água?", time: "11:30" }] },
-  { id: 3, name: "Viz. Alegre", emoji: "🏠", members: 24, memberList: [{ name: "João Oliveira", initials: "JO", isTutor: true }, { name: "Maria Silva", initials: "MS" }, { name: "José Santos", initials: "JS" }, { name: "Lúcia Mendes", initials: "LM" }, { name: "Paulo Ferreira", initials: "PF" }, { name: "Clara Rocha", initials: "CR" }, { name: "Davi Alves", initials: "DA" }, { name: "Elisa Pinto", initials: "EP" }, { name: "Fábio Cunha", initials: "FC" }, { name: "Glória Teixeira", initials: "GT" }, { name: "Hugo Barbosa", initials: "HB" }, { name: "Ivone Castro", initials: "IC" }, { name: "Jorge Moura", initials: "JM" }, { name: "Kátia Lopes", initials: "KL" }], lastMessage: "Dona Lúcia: Amanhã tem aula de yoga!", time: "Ontem", unread: 0, messages: [{ id: 1, sender: "them", text: "Pessoal, alguém fez a caminhada hoje?", time: "09:00" }, { id: 2, sender: "me", text: "Eu fiz! Meia hora no parque.", time: "09:30" }, { id: 3, sender: "them", text: "Dona Lúcia: Amanhã tem aula de yoga!", time: "10:15" }] },
-  { id: 4, name: "Clube Ativo 60+", emoji: "🌟", members: 31, memberList: [{ name: "Ana Tutora", initials: "AT", isTutor: true }, { name: "João Oliveira", initials: "JO", isTutor: true }, { name: "Ana Oliveira", initials: "AO" }, { name: "Roberto Lima", initials: "RL" }, { name: "Tereza Neves", initials: "TN" }, { name: "Benedito Souza", initials: "BS" }, { name: "Conceição Ramos", initials: "CR" }, { name: "Dalva Pereira", initials: "DP" }, { name: "Edson Melo", initials: "EM" }, { name: "Fátima Gomes", initials: "FG" }], lastMessage: "Coordenador: Parabéns a todos!", time: "Seg", unread: 0, messages: [{ id: 1, sender: "them", text: "Vocês estão arrasando nos exercícios!", time: "15:00" }, { id: 2, sender: "me", text: "Obrigada! Cada dia melhorando.", time: "15:20" }, { id: 3, sender: "them", text: "Coordenador: Parabéns a todos!", time: "16:00" }] },
-];
-
-// Which friends already did each exercise today (by exercise id)
-const friendsDoneToday: Record<number, { name: string; avatar: string; isTutor?: boolean }[]> = {
-  1: [{ name: "Maria Silva", avatar: "MS" }, { name: "Ana Oliveira", avatar: "AO" }],
-  2: [{ name: "Maria Silva", avatar: "MS" }],
-  3: [{ name: "Roberto Lima", avatar: "RL" }, { name: "Ana Oliveira", avatar: "AO" }],
-  4: [{ name: "Maria Silva", avatar: "MS" }, { name: "José Santos", avatar: "JS" }, { name: "João Oliveira", avatar: "JO", isTutor: true }],
-  5: [{ name: "Ana Oliveira", avatar: "AO" }, { name: "João Oliveira", avatar: "JO", isTutor: true }],
-  6: [],
-  7: [{ name: "Roberto Lima", avatar: "RL" }],
-  8: [{ name: "Maria Silva", avatar: "MS" }, { name: "José Santos", avatar: "JS" }],
-};
+// ─── Style maps ───────────────────────────────────────────────────────────────
 
 const categoryColors: Record<string, string> = {
   Alongamento: "bg-[#FFF0EB] text-[#D95C35]",
@@ -178,7 +87,7 @@ function Avatar({ initials, size = "md", index = 0 }: { initials: string; size?:
 }
 
 function ExerciseModal({ exercise, completed, onToggle, onClose }: { exercise: Exercise; completed: boolean; onToggle: () => void; onClose: () => void }) {
-  const friends = friendsDoneToday[exercise.id] ?? [];
+  const friends = exercise.friendsDone ?? [];
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -256,20 +165,24 @@ function ExerciseModal({ exercise, completed, onToggle, onClose }: { exercise: E
   );
 }
 
-function ExercisesView({ completed, onToggle, userName }: { completed: Set<number>; onToggle: (id: number) => void; userName: string }) {
+function ExercisesView({ exercises, onToggle, userName }: { exercises: Exercise[]; onToggle: (id: number) => void; userName: string }) {
   const [filter, setFilter] = useState("Todos");
   const [selected, setSelected] = useState<Exercise | null>(null);
   const categories = ["Todos", "Alongamento", "Equilíbrio", "Cardio", "Força", "Respiração"];
   const filtered = filter === "Todos" ? exercises : exercises.filter((e) => e.category === filter);
-  const doneCount = exercises.filter((e) => completed.has(e.id)).length;
+  const doneCount = exercises.filter((e) => e.completed).length;
+  const progress = exercises.length ? (doneCount / exercises.length) * 100 : 0;
+
+  // Keep the open modal in sync with refreshed exercise data.
+  const selectedExercise = selected ? exercises.find((e) => e.id === selected.id) ?? selected : null;
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
-      {selected && (
+      {selectedExercise && (
         <ExerciseModal
-          exercise={selected}
-          completed={completed.has(selected.id)}
-          onToggle={() => onToggle(selected.id)}
+          exercise={selectedExercise}
+          completed={selectedExercise.completed}
+          onToggle={() => onToggle(selectedExercise.id)}
           onClose={() => setSelected(null)}
         />
       )}
@@ -286,7 +199,7 @@ function ExercisesView({ completed, onToggle, userName }: { completed: Set<numbe
             <span className="font-semibold text-primary">{doneCount} de {exercises.length} atividades</span>
           </div>
           <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(doneCount / exercises.length) * 100}%` }} />
+            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
       </div>
@@ -306,8 +219,8 @@ function ExercisesView({ completed, onToggle, userName }: { completed: Set<numbe
       </div>
       <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-3">
         {filtered.map((ex) => {
-          const done = completed.has(ex.id);
-          const doneFriends = friendsDoneToday[ex.id] ?? [];
+          const done = ex.completed;
+          const doneFriends = ex.friendsDone ?? [];
           return (
             <div
               key={ex.id}
@@ -316,7 +229,7 @@ function ExercisesView({ completed, onToggle, userName }: { completed: Set<numbe
             >
               <div className="flex items-start gap-4">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors ${done ? "bg-secondary text-white" : categoryColors[ex.category] || "bg-muted text-muted-foreground"}`}>
-                  {done ? <Check size={22} /> : ex.icon}
+                  {done ? <Check size={22} /> : <ExerciseIcon name={ex.icon} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
@@ -565,62 +478,61 @@ function ChatView({ name, initials, avatarIndex, messages, onBack, onSend, membe
   );
 }
 
-interface FriendRequest {
-  id: number;
-  name: string;
-  initials: string;
-  mutualGroup: string;
-  isTutor?: boolean;
-}
-
-const initialRequests: FriendRequest[] = [
-  { id: 101, name: "Carmen Souza", initials: "CS", mutualGroup: "Turma da Manhã" },
-  { id: 102, name: "Paulo Ferreira", initials: "PF", mutualGroup: "Viz. Alegre" },
-];
-
-function FriendsView({ autoOpenFriendId, onAutoOpenHandled }: { autoOpenFriendId?: number; onAutoOpenHandled?: () => void }) {
-  const [friends, setFriends] = useState(initialFriends);
-  const [requests, setRequests] = useState<FriendRequest[]>(initialRequests);
+function FriendsView({ autoOpenTutor, onAutoOpenHandled }: { autoOpenTutor?: boolean; onAutoOpenHandled?: () => void }) {
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!autoOpenFriendId) return;
-    const friend = friends.find((f) => f.id === autoOpenFriendId);
-    if (friend) openChat(friend);
-    onAutoOpenHandled?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpenFriendId]);
+    Promise.all([api.listFriends(), api.listFriendRequests()])
+      .then(([fs, rs]) => { setFriends(fs); setRequests(rs); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const openChat = (friend: Friend) => {
     setFriends((prev) => prev.map((f) => (f.id === friend.id ? { ...f, unread: 0 } : f)));
     setActiveFriend({ ...friend, unread: 0 });
   };
 
-  const acceptRequest = (req: FriendRequest) => {
-    const newFriend: Friend = {
-      id: req.id,
-      name: req.name,
-      avatar: req.initials,
-      isTutor: req.isTutor,
-      lastMessage: "Agora vocês são amigos! Diga olá 👋",
-      time: "agora",
-      unread: 0,
-      messages: [{ id: 1, sender: "them", text: "Oi! Que bom que aceitou meu convite 😊", time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) }],
-    };
-    setFriends((prev) => [newFriend, ...prev]);
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
+  useEffect(() => {
+    if (!autoOpenTutor || loading) return;
+    const tutor = friends.find((f) => f.isTutor);
+    if (tutor) openChat(tutor);
+    onAutoOpenHandled?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenTutor, loading]);
+
+  const acceptRequest = async (req: FriendRequest) => {
+    try {
+      const newFriend = await api.acceptFriendRequest(req.id);
+      setFriends((prev) => [newFriend, ...prev]);
+      setRequests((prev) => prev.filter((r) => r.id !== req.id));
+    } catch {
+      /* ignore */
+    }
   };
 
-  const declineRequest = (id: number) => {
-    setRequests((prev) => prev.filter((r) => r.id !== id));
+  const declineRequest = async (id: number) => {
+    try {
+      await api.declineFriendRequest(id);
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      /* ignore */
+    }
   };
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     if (!activeFriend) return;
-    const newMsg: Message = { id: Date.now(), sender: "me", text, time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) };
-    const updated = { ...activeFriend, messages: [...activeFriend.messages, newMsg], lastMessage: text };
-    setActiveFriend(updated);
-    setFriends((prev) => prev.map((f) => (f.id === activeFriend.id ? updated : f)));
+    try {
+      const msg = await api.sendFriendMessage(activeFriend.id, text);
+      const updated = { ...activeFriend, messages: [...activeFriend.messages, msg], lastMessage: msg.text, time: msg.time };
+      setActiveFriend(updated);
+      setFriends((prev) => prev.map((f) => (f.id === activeFriend.id ? updated : f)));
+    } catch {
+      /* ignore */
+    }
   };
 
   if (activeFriend) {
@@ -640,6 +552,9 @@ function FriendsView({ autoOpenFriendId, onAutoOpenHandled }: { autoOpenFriendId
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-5">
+        {loading && (
+          <p className="text-muted-foreground text-sm text-center pt-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Carregando...</p>
+        )}
         {/* Friend requests section */}
         {requests.length > 0 && (
           <div>
@@ -688,7 +603,7 @@ function FriendsView({ autoOpenFriendId, onAutoOpenHandled }: { autoOpenFriendId
 
         {/* Friends list */}
         <div className="space-y-2">
-          {requests.length === 0 && (
+          {requests.length === 0 && !loading && (
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Seus amigos
             </p>
@@ -734,20 +649,29 @@ function FriendsView({ autoOpenFriendId, onAutoOpenHandled }: { autoOpenFriendId
 }
 
 function GroupsView({ friendNames, pendingInvites, onInvite, currentUserName }: { friendNames: Set<string>; pendingInvites: Set<string>; onInvite: (name: string) => void; currentUserName: string }) {
-  const [groups, setGroups] = useState(initialGroups);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+
+  useEffect(() => {
+    api.listGroups().then(setGroups).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
   const openGroup = (group: Group) => {
     setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, unread: 0 } : g)));
     setActiveGroup({ ...group, unread: 0 });
   };
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     if (!activeGroup) return;
-    const newMsg: Message = { id: Date.now(), sender: "me", text, time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) };
-    const updated = { ...activeGroup, messages: [...activeGroup.messages, newMsg], lastMessage: `Você: ${text}` };
-    setActiveGroup(updated);
-    setGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? updated : g)));
+    try {
+      const msg = await api.sendGroupMessage(activeGroup.id, text);
+      const updated = { ...activeGroup, messages: [...activeGroup.messages, msg], lastMessage: `Você: ${msg.text}`, time: msg.time };
+      setActiveGroup(updated);
+      setGroups((prev) => prev.map((g) => (g.id === activeGroup.id ? updated : g)));
+    } catch {
+      /* ignore */
+    }
   };
 
   if (activeGroup) {
@@ -761,6 +685,9 @@ function GroupsView({ friendNames, pendingInvites, onInvite, currentUserName }: 
         <p className="text-muted-foreground mt-1 text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Sua comunidade ativa</p>
       </div>
       <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-3">
+        {loading && (
+          <p className="text-muted-foreground text-sm text-center pt-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Carregando...</p>
+        )}
         {groups.map((group) => (
           <button
             key={group.id}
@@ -804,26 +731,29 @@ function GroupsView({ friendNames, pendingInvites, onInvite, currentUserName }: 
 
 // ─── Senior App ───────────────────────────────────────────────────────────────
 
-// Tutor friend id that seniors can reach for help
-const TUTOR_FRIEND_ID = 5;
-
 function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("exercises");
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
   const [openTutorChat, setOpenTutorChat] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
+  const [friendNames, setFriendNames] = useState<Set<string>>(new Set());
 
-  const friendNames = new Set(initialFriends.map((f) => f.name));
+  useEffect(() => { api.listExercises().then(setExercises).catch(() => {}); }, []);
+  useEffect(() => {
+    api.listFriends().then((fs) => setFriendNames(new Set(fs.map((f) => f.name)))).catch(() => {});
+  }, []);
+
   const handleInvite = (name: string) => setPendingInvites((prev) => new Set([...prev, name]));
 
-  const toggleExercise = (id: number) => {
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleExercise = async (id: number) => {
+    setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+    try {
+      await api.toggleExercise(id);
+    } catch {
+      // revert on failure
+      setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+    }
   };
 
   const handleContactTutor = () => {
@@ -898,10 +828,10 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {tab === "exercises" && <ExercisesView completed={completed} onToggle={toggleExercise} userName={userName} />}
+        {tab === "exercises" && <ExercisesView exercises={exercises} onToggle={toggleExercise} userName={userName} />}
         {tab === "friends" && (
           <FriendsView
-            autoOpenFriendId={openTutorChat ? TUTOR_FRIEND_ID : undefined}
+            autoOpenTutor={openTutorChat}
             onAutoOpenHandled={handleFriendsViewMounted}
           />
         )}
@@ -934,10 +864,20 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [session, setSession] = useState<{ role: Role; name: string } | null>(null);
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [restoring, setRestoring] = useState(true);
 
-  const handleLogin = (role: Role, name: string) => setSession({ role, name });
-  const handleLogout = () => setSession(null);
+  // Restore an existing session from a stored token on first load.
+  useEffect(() => {
+    if (!getToken()) { setRestoring(false); return; }
+    api.me()
+      .then(setSession)
+      .catch(() => setToken(null))
+      .finally(() => setRestoring(false));
+  }, []);
+
+  const handleLogin = (user: SessionUser) => setSession(user);
+  const handleLogout = () => { setToken(null); setSession(null); };
 
   return (
     <div className="size-full flex items-center justify-center bg-[#E8DDD3]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -956,9 +896,13 @@ export default function App() {
           </div>
         </div>
 
-        {!session && <LoginScreen onLogin={handleLogin} />}
-        {session?.role === "senior" && <SeniorApp userName={session.name} onLogout={handleLogout} />}
-        {session?.role === "tutor" && <TutorApp tutorName={session.name} onLogout={handleLogout} />}
+        {restoring ? null : !session ? (
+          <LoginScreen onLogin={handleLogin} />
+        ) : session.role === "senior" ? (
+          <SeniorApp userName={session.name} onLogout={handleLogout} />
+        ) : (
+          <TutorApp tutorName={session.name} onLogout={handleLogout} />
+        )}
       </div>
     </div>
   );
