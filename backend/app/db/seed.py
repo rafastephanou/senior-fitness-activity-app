@@ -22,6 +22,8 @@ from ..models.social import (
     GroupMember,
     GroupMessage,
 )
+from ..models.activity import Activity, RunningActivity, RunningActivityCompletion
+from ..models.tutor import Announcement, LiveEvent
 from ..models.user import User
 
 # Monotonic clock so messages keep their insertion order regardless of labels.
@@ -40,10 +42,22 @@ USERS = [
     ("jose@exemplo.com", "123456", "José Santos", "JS", "senior"),
     ("ana.oliveira@exemplo.com", "123456", "Ana Oliveira", "AO", "senior"),
     ("roberto@exemplo.com", "123456", "Roberto Lima", "RL", "senior"),
+    ("lucia@exemplo.com", "123456", "Lúcia Mendes", "LM", "senior"),
+    ("carlos.dias@exemplo.com", "123456", "Carlos Dias", "CD", "senior"),
     ("joao@exemplo.com", "admin123", "João Oliveira", "JO", "tutor"),
     ("ana@exemplo.com", "admin123", "Ana Tutora", "AT", "tutor"),
     ("carlos@exemplo.com", "admin123", "Carlos Supervisor", "CS", "tutor"),
 ]
+
+# Senior dashboard profiles (drives the tutor stats): initials -> (age, streak, did_today)
+SENIOR_PROFILES = {
+    "MS": (68, 12, False),
+    "JS": (72, 2, True),
+    "AO": (65, 21, True),
+    "RL": (70, 7, True),
+    "LM": (66, 30, True),
+    "CD": (74, 0, False),
+}
 
 # ── Exercises (catalog) ──────────────────────────────────────────────────────
 EXERCISES = [
@@ -104,19 +118,6 @@ EXERCISES = [
       "Faça 3 séries de 10 repetições de cada variação, descansando entre as séries."],
      "Comece sem peso. Adicione a garrafa d'água somente quando sentir facilidade."),
 ]
-
-# Which friends already did each exercise today (by exercise position 1..8),
-# referenced by user initials. Maria (MS) is excluded since she is the viewer.
-FRIENDS_DONE = {
-    1: ["AO"],
-    2: [],
-    3: ["RL", "AO"],
-    4: ["JS", "JO"],
-    5: ["AO", "JO"],
-    6: [],
-    7: ["RL"],
-    8: ["JS"],
-}
 
 # ── Maria's direct-message threads (friend initials -> (unread, messages)) ────
 # Each message: (who, text, time)  where who is "me" (Maria) or "them" (friend).
@@ -186,7 +187,8 @@ GROUPS = [
                     ("Lúcia Mendes", "LM", False), ("Paulo Ferreira", "PF", False), ("Clara Rocha", "CR", False),
                     ("Davi Alves", "DA", False), ("Elisa Pinto", "EP", False), ("Fábio Cunha", "FC", False),
                     ("Glória Teixeira", "GT", False), ("Hugo Barbosa", "HB", False), ("Ivone Castro", "IC", False),
-                    ("Jorge Moura", "JM", False), ("Kátia Lopes", "KL", False)],
+                    ("Jorge Moura", "JM", False), ("Kátia Lopes", "KL", False),
+                    ("Carlos Dias", "CD", False)],
         "messages": [
             ("them", "Pessoal, alguém fez a caminhada hoje?", "09:00", None, False, None),
             ("me", "Eu fiz! Meia hora no parque.", "09:30", None, False, None),
@@ -222,6 +224,7 @@ def seed(db: Session) -> None:
             name=name,
             initials=initials,
             role=role,
+            age=SENIOR_PROFILES[initials][0] if initials in SENIOR_PROFILES else None,
         )
         db.add(u)
         users[initials] = u
@@ -237,12 +240,36 @@ def seed(db: Session) -> None:
         exercises.append(ex)
     db.flush()
 
-    # Friends-did-this-today completions
+    # Activity templates — the tutor's "created activities" catalog
+    activity_templates: list[Activity] = []
+    for name, cat, dur, level, icon, benefit, _steps, _tip in EXERCISES:
+        a = Activity(name=name, category=cat, duration=dur, level=level, icon=icon,
+                     description=benefit, is_custom=False)
+        db.add(a)
+        activity_templates.append(a)
+    db.flush()
+
+    # Historical exercise completions — drives the tutor dashboard (streaks,
+    # weekly counts, alerts) and the seniors' "friends who did this today" badges.
     today = dt.datetime.now(dt.timezone.utc).date()
-    for pos, initials_list in FRIENDS_DONE.items():
-        ex = exercises[pos - 1]
-        for initials in initials_list:
-            db.add(ExerciseCompletion(user_id=users[initials].id, exercise_id=ex.id, day=today))
+    ex_count = len(exercises)
+    for idx, initials in enumerate(["MS", "JS", "AO", "RL", "LM", "CD"]):
+        _age, streak, did_today = SENIOR_PROFILES[initials]
+        if streak == 0:
+            # one stale completion a few days ago -> triggers "sem atividade recente"
+            db.add(ExerciseCompletion(
+                user_id=users[initials].id,
+                exercise_id=exercises[idx % ex_count].id,
+                day=today - dt.timedelta(days=4),
+            ))
+            continue
+        start = 0 if did_today else 1
+        for d in range(start, start + streak):
+            db.add(ExerciseCompletion(
+                user_id=users[initials].id,
+                exercise_id=exercises[(idx + d) % ex_count].id,
+                day=today - dt.timedelta(days=d),
+            ))
 
     # Maria's friendships + direct messages
     for initials, (unread, messages) in FRIEND_THREADS.items():
@@ -263,6 +290,7 @@ def seed(db: Session) -> None:
         ))
 
     # Groups
+    groups_by_name: dict[str, Group] = {}
     for g in GROUPS:
         group = Group(
             name=g["name"], emoji=g["emoji"], member_count=g["member_count"],
@@ -271,6 +299,7 @@ def seed(db: Session) -> None:
         )
         db.add(group)
         db.flush()
+        groups_by_name[group.name] = group
         for name, initials, is_tutor in g["members"]:
             member_user = users.get(initials)
             db.add(GroupMember(
@@ -286,5 +315,57 @@ def seed(db: Session) -> None:
                 is_tutor=is_tutor, text=text, time_label=time_label,
                 event=event, created_at=_next_time(),
             ))
+
+    # Announcements (added oldest-first so the newest shows on top)
+    announcements = [
+        (None, "Lembrem-se: beber bastante água durante os exercícios 💧", "Seg, 09:00"),
+        ("Saúde em Família", "Parabéns ao José pela sequência de 7 dias! 🎉", "Ontem, 18:00"),
+        ("Turma da Manhã", "Amanhã tem sessão especial de alongamento às 8h! Não percam 🌅", "Hoje, 07:30"),
+    ]
+    for group_name, text, label in announcements:
+        grp = groups_by_name.get(group_name) if group_name else None
+        db.add(Announcement(
+            tutor_id=None,
+            target_all=group_name is None,
+            group_id=grp.id if grp else None,
+            text=text,
+            time_label=label,
+            created_at=_next_time(),
+        ))
+
+    # Live events
+    db.add(LiveEvent(
+        title="Alongamento Matinal em Grupo", activity_type="Alongamento",
+        scheduled_at="Hoje às 09:00", duration=20,
+        description="Sessão guiada de alongamento para começar o dia com energia.",
+        status="sent", sent_to_group="Turma da Manhã", sent_at="Hoje, 08:25",
+    ))
+    db.add(LiveEvent(
+        title="Respiração e Relaxamento", activity_type="Respiração",
+        scheduled_at="Amanhã às 10:00", duration=15,
+        description="Técnicas de respiração profunda para reduzir ansiedade.",
+        status="saved",
+    ))
+    db.add(LiveEvent(
+        title="Equilíbrio e Postura", activity_type="Equilíbrio",
+        scheduled_at="Sex às 09:30", duration=25,
+        description="Exercícios de equilíbrio para prevenção de quedas.",
+        status="saved",
+    ))
+
+    # One activity already dispatched ("em execução") for the demo
+    turma = groups_by_name.get("Turma da Manhã")
+    if turma and activity_templates:
+        tmpl = activity_templates[0]
+        running = RunningActivity(
+            activity_id=tmpl.id, group_id=turma.id, group_name=turma.name,
+            name=tmpl.name, category=tmpl.category, duration=tmpl.duration,
+            level=tmpl.level, icon=tmpl.icon, description=tmpl.description,
+            started_label="Hoje, 08:30",
+        )
+        db.add(running)
+        db.flush()
+        for initials in ["MS", "AO"]:
+            db.add(RunningActivityCompletion(running_activity_id=running.id, user_id=users[initials].id))
 
     db.commit()
