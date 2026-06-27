@@ -11,9 +11,7 @@ import {
   UserMinus,
   Send,
   ChevronLeft,
-  ChevronRight,
   Check,
-  AlertCircle,
   Clock,
   Flame,
   Star,
@@ -29,142 +27,40 @@ import {
   BookmarkCheck,
   ChevronDown,
 } from "lucide-react";
+import { api } from "../../lib/api";
+import type {
+  TutorSenior,
+  TutorGroup,
+  TutorChatMessage,
+  TutorAnnouncement,
+  CreatedActivity,
+  RunningActivity,
+  LiveEvent,
+} from "../../lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TutorTab = "home" | "groups" | "avisos" | "atividades" | "eventos";
 
-interface LiveEvent {
-  id: number;
-  title: string;
-  activityType: string;
-  scheduledAt: string;
-  duration: number;
-  description: string;
-  status: "saved" | "sent";
-  sentToGroup?: string;
-  sentAt?: string;
+// Maps a logical icon name (from the API) to a lucide icon.
+function ActivityIcon({ name, size = 18 }: { name: string; size?: number }) {
+  switch (name) {
+    case "heart":
+      return <Heart size={size} />;
+    case "rotate":
+      return <RotateCcw size={size} />;
+    case "footprints":
+      return <Footprints size={size} />;
+    case "wind":
+      return <Wind size={size} />;
+    case "shield":
+      return <Shield size={size} />;
+    case "star":
+      return <Star size={size} />;
+    default:
+      return <Dumbbell size={size} />;
+  }
 }
-
-interface Senior {
-  id: number;
-  name: string;
-  initials: string;
-  age: number;
-  exercisesThisWeek: number;
-  exercisesToday: number;
-  streak: number;
-  lastActive: string;
-  alert?: string;
-  groups: string[];
-}
-
-interface GroupMember {
-  id: number;
-  name: string;
-  initials: string;
-}
-
-interface ChatMessage {
-  id: number;
-  sender: "tutor" | "member";
-  senderName: string;
-  text: string;
-  time: string;
-}
-
-interface Group {
-  id: number;
-  name: string;
-  emoji: string;
-  description: string;
-  members: GroupMember[];
-  createdAt: string;
-  messages: ChatMessage[];
-}
-
-interface Announcement {
-  id: number;
-  targetAll: boolean;
-  groupId?: number;
-  groupName?: string;
-  text: string;
-  time: string;
-}
-
-interface Activity {
-  id: number;
-  name: string;
-  category: string;
-  duration: number;
-  level: "Fácil" | "Moderado";
-  icon: React.ReactNode;
-  completedBy: number[];
-}
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const allSeniors: Senior[] = [
-  { id: 1, name: "Maria Silva", initials: "MS", age: 68, exercisesThisWeek: 5, exercisesToday: 3, streak: 12, lastActive: "Hoje, 09:23", groups: ["Turma da Manhã", "Viz. Alegre"] },
-  { id: 2, name: "José Santos", initials: "JS", age: 72, exercisesThisWeek: 2, exercisesToday: 0, streak: 2, lastActive: "Ontem", alert: "Pouca atividade esta semana", groups: ["Saúde em Família", "Viz. Alegre"] },
-  { id: 3, name: "Ana Oliveira", initials: "AO", age: 65, exercisesThisWeek: 6, exercisesToday: 4, streak: 21, lastActive: "Hoje, 08:40", groups: ["Turma da Manhã"] },
-  { id: 4, name: "Roberto Lima", initials: "RL", age: 70, exercisesThisWeek: 4, exercisesToday: 2, streak: 7, lastActive: "Hoje, 10:15", groups: ["Saúde em Família"] },
-  { id: 5, name: "Lúcia Mendes", initials: "LM", age: 66, exercisesThisWeek: 7, exercisesToday: 5, streak: 30, lastActive: "Hoje, 07:55", groups: ["Turma da Manhã"] },
-  { id: 6, name: "Carlos Dias", initials: "CD", age: 74, exercisesThisWeek: 1, exercisesToday: 0, streak: 0, lastActive: "3 dias atrás", alert: "Sem atividade recente", groups: ["Viz. Alegre"] },
-];
-
-const initialGroups: Group[] = [
-  {
-    id: 1, name: "Turma da Manhã", emoji: "🌅", description: "Exercícios matinais em grupo",
-    members: [{ id: 1, name: "Maria Silva", initials: "MS" }, { id: 3, name: "Ana Oliveira", initials: "AO" }, { id: 5, name: "Lúcia Mendes", initials: "LM" }],
-    createdAt: "12 mai 2025",
-    messages: [
-      { id: 1, sender: "member", senderName: "Maria Silva", text: "Bom dia turma! Prontos para os exercícios? 💪", time: "08:00" },
-      { id: 2, sender: "member", senderName: "Ana Oliveira", text: "Prontos! Vamos lá!", time: "08:03" },
-      { id: 3, sender: "tutor", senderName: "Você", text: "Ótimo! Lembrem de começar com o alongamento do pescoço hoje 🌅", time: "08:05" },
-      { id: 4, sender: "member", senderName: "Lúcia Mendes", text: "Já fiz o alongamento e a respiração profunda!", time: "08:40" },
-    ],
-  },
-  {
-    id: 2, name: "Saúde em Família", emoji: "❤️", description: "Grupo para sêniores e familiares",
-    members: [{ id: 2, name: "José Santos", initials: "JS" }, { id: 4, name: "Roberto Lima", initials: "RL" }],
-    createdAt: "3 jan 2025",
-    messages: [
-      { id: 1, sender: "tutor", senderName: "Você", text: "Olá pessoal! Como estão se sentindo hoje?", time: "09:00" },
-      { id: 2, sender: "member", senderName: "Roberto Lima", text: "Bem disposto! Fiz a caminhada no lugar.", time: "09:20" },
-      { id: 3, sender: "member", senderName: "José Santos", text: "Hoje tive dificuldade de começar... mas vou tentar!", time: "10:00" },
-      { id: 4, sender: "tutor", senderName: "Você", text: "José, que bom que vai tentar! Comece pela respiração profunda, é mais fácil 😊", time: "10:05" },
-    ],
-  },
-  {
-    id: 3, name: "Viz. Alegre", emoji: "🏠", description: "Moradores do condomínio",
-    members: [{ id: 1, name: "Maria Silva", initials: "MS" }, { id: 2, name: "José Santos", initials: "JS" }, { id: 6, name: "Carlos Dias", initials: "CD" }],
-    createdAt: "5 fev 2025",
-    messages: [
-      { id: 1, sender: "member", senderName: "Maria Silva", text: "Alguém vai fazer a caminhada no parque hoje?", time: "07:30" },
-      { id: 2, sender: "tutor", senderName: "Você", text: "Boa ideia Maria! Amanhã tem aula de yoga aqui no app também 🧘", time: "07:45" },
-      { id: 3, sender: "member", senderName: "Carlos Dias", text: "Eu não tenho conseguido fazer os exercícios essa semana...", time: "08:10" },
-      { id: 4, sender: "tutor", senderName: "Você", text: "Carlos, tudo bem! Comece devagar. Só 5 minutos de alongamento já ajuda muito 💙", time: "08:15" },
-    ],
-  },
-];
-
-const initialAnnouncements: Announcement[] = [
-  { id: 1, targetAll: false, groupId: 1, groupName: "Turma da Manhã", text: "Amanhã tem sessão especial de alongamento às 8h! Não percam 🌅", time: "Hoje, 07:30" },
-  { id: 2, targetAll: false, groupId: 2, groupName: "Saúde em Família", text: "Parabéns ao José pela sequência de 7 dias! 🎉", time: "Ontem, 18:00" },
-  { id: 3, targetAll: true, text: "Lembrem-se: beber bastante água durante os exercícios 💧", time: "Seg, 09:00" },
-];
-
-const activities: Activity[] = [
-  { id: 1, name: "Alongamento do Pescoço", category: "Alongamento", duration: 5, level: "Fácil", icon: <Heart size={18} />, completedBy: [1, 3, 5] },
-  { id: 2, name: "Rotação dos Ombros", category: "Alongamento", duration: 8, level: "Fácil", icon: <RotateCcw size={18} />, completedBy: [1] },
-  { id: 3, name: "Equilíbrio em Um Pé", category: "Equilíbrio", duration: 5, level: "Moderado", icon: <Footprints size={18} />, completedBy: [3, 4] },
-  { id: 4, name: "Respiração Profunda", category: "Respiração", duration: 7, level: "Fácil", icon: <Wind size={18} />, completedBy: [1, 2, 3, 5] },
-  { id: 5, name: "Caminhada no Lugar", category: "Cardio", duration: 15, level: "Fácil", icon: <Footprints size={18} />, completedBy: [3, 5] },
-  { id: 6, name: "Flexão dos Joelhos", category: "Força", duration: 10, level: "Moderado", icon: <Dumbbell size={18} />, completedBy: [] },
-  { id: 7, name: "Alongamento das Costas", category: "Alongamento", duration: 8, level: "Fácil", icon: <Heart size={18} />, completedBy: [4] },
-  { id: 8, name: "Elevação dos Braços", category: "Força", duration: 10, level: "Fácil", icon: <Star size={18} />, completedBy: [1, 2] },
-];
 
 const avatarColors = [
   "bg-[#F5C5B2] text-[#8B3A20]",
@@ -202,11 +98,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Início ───────────────────────────────────────────────────────────────────
 
-function PageHome({ tutorName }: { tutorName: string }) {
-  const withAlerts = allSeniors.filter((s) => s.alert);
-  const activeToday = allSeniors.filter((s) => s.exercisesToday > 0).length;
-  const topStreak = allSeniors.reduce((a, b) => (a.streak > b.streak ? a : b));
-  const totalExercisesToday = allSeniors.reduce((sum, s) => sum + s.exercisesToday, 0);
+function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSenior[] }) {
+  const withAlerts = seniors.filter((s) => s.alert);
+  const activeToday = seniors.filter((s) => s.exercisesToday > 0).length;
+  const topStreak = seniors.length ? seniors.reduce((a, b) => (a.streak > b.streak ? a : b)) : null;
+  const totalExercisesToday = seniors.reduce((sum, s) => sum + s.exercisesToday, 0);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -224,7 +120,7 @@ function PageHome({ tutorName }: { tutorName: string }) {
         {/* Stat cards */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#4A52B2] rounded-2xl p-4 text-white">
-            <p className="text-3xl font-bold" style={{ fontFamily: "'Fraunces', serif" }}>{allSeniors.length}</p>
+            <p className="text-3xl font-bold" style={{ fontFamily: "'Fraunces', serif" }}>{seniors.length}</p>
             <p className="text-sm font-medium text-white/80 mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>sêniores sob cuidado</p>
           </div>
           <div className="bg-[#EBF5ED] rounded-2xl p-4">
@@ -264,21 +160,23 @@ function PageHome({ tutorName }: { tutorName: string }) {
         )}
 
         {/* Top streak highlight */}
-        <div className="bg-gradient-to-r from-[#4A52B2] to-[#6B74D4] rounded-2xl p-4 flex items-center gap-4 text-white">
-          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-            <Flame size={24} className="text-[#F5A623]" />
+        {topStreak && (
+          <div className="bg-gradient-to-r from-[#4A52B2] to-[#6B74D4] rounded-2xl p-4 flex items-center gap-4 text-white">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+              <Flame size={24} className="text-[#F5A623]" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white/70 uppercase tracking-wide" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Maior sequência 🏆</p>
+              <p className="font-bold text-white mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{topStreak.name} — {topStreak.streak} dias seguidos</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wide" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Maior sequência 🏆</p>
-            <p className="font-bold text-white mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{topStreak.name} — {topStreak.streak} dias seguidos</p>
-          </div>
-        </div>
+        )}
 
         {/* All seniors */}
         <div>
           <SectionLabel>Todos os sêniores</SectionLabel>
           <div className="space-y-2">
-            {allSeniors.map((s, idx) => (
+            {seniors.map((s, idx) => (
               <div key={s.id} className="bg-card rounded-2xl p-4 border border-border flex items-center gap-3">
                 <Avatar initials={s.initials} size="sm" index={idx} />
                 <div className="flex-1 min-w-0">
@@ -303,37 +201,49 @@ function PageHome({ tutorName }: { tutorName: string }) {
 
 // ─── Tutor Group Chat ─────────────────────────────────────────────────────────
 
-function TutorGroupChat({ group, onBack, onUpdateGroup }: { group: Group; onBack: () => void; onUpdateGroup: (g: Group) => void }) {
-  const [messages, setMessages] = useState<ChatMessage[]>(group.messages);
+function TutorGroupChat({ group, seniors, onBack, onUpdated }: { group: TutorGroup; seniors: TutorSenior[]; onBack: () => void; onUpdated: (g: TutorGroup) => void }) {
+  const [messages, setMessages] = useState<TutorChatMessage[]>(group.messages);
+  const [members, setMembers] = useState(group.members);
   const [input, setInput] = useState("");
   const [showMembers, setShowMembers] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const t = input.trim();
     if (!t) return;
-    const msg: ChatMessage = {
-      id: Date.now(), sender: "tutor", senderName: "Você", text: t,
-      time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-    };
-    const updated = [...messages, msg];
-    setMessages(updated);
-    onUpdateGroup({ ...group, messages: updated });
     setInput("");
+    try {
+      const msg = await api.sendTutorGroupMessage(group.id, t);
+      setMessages((prev) => [...prev, msg]);
+    } catch {
+      /* ignore */
+    }
   };
 
-  const addMember = (s: Senior) => {
-    if (group.members.find((m) => m.id === s.id)) return;
-    onUpdateGroup({ ...group, members: [...group.members, { id: s.id, name: s.name, initials: s.initials }] });
+  const addMember = async (s: TutorSenior) => {
+    if (members.find((m) => m.id === s.id)) return;
+    try {
+      const g = await api.addGroupMember(group.id, s.id);
+      setMembers(g.members);
+      onUpdated(g);
+    } catch {
+      /* ignore */
+    }
   };
 
-  const removeMember = (id: number) => {
-    onUpdateGroup({ ...group, members: group.members.filter((m) => m.id !== id) });
+  const removeMember = async (id: number) => {
+    try {
+      const g = await api.removeGroupMember(group.id, id);
+      setMembers(g.members);
+      onUpdated(g);
+    } catch {
+      /* ignore */
+    }
   };
 
-  const notIn = allSeniors.filter((s) => !group.members.find((m) => m.id === s.id));
+  const notIn = seniors.filter((s) => !members.find((m) => m.id === s.id));
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
@@ -345,7 +255,7 @@ function TutorGroupChat({ group, onBack, onUpdateGroup }: { group: Group; onBack
             <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif", fontSize: "1.15rem" }}>Membros do grupo</h2>
-                <p className="text-sm text-muted-foreground">{group.members.length} participantes</p>
+                <p className="text-sm text-muted-foreground">{members.length} participantes</p>
               </div>
               <button onClick={() => setShowMembers(false)} className="w-9 h-9 bg-muted rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                 <X size={18} />
@@ -354,10 +264,10 @@ function TutorGroupChat({ group, onBack, onUpdateGroup }: { group: Group; onBack
             <div className="overflow-y-auto px-5 py-4 space-y-5">
               {/* Current members */}
               <div>
-                <SectionLabel>Membros atuais ({group.members.length})</SectionLabel>
-                {group.members.length === 0 && <p className="text-muted-foreground text-sm text-center py-2">Nenhum membro ainda.</p>}
+                <SectionLabel>Membros atuais ({members.length})</SectionLabel>
+                {members.length === 0 && <p className="text-muted-foreground text-sm text-center py-2">Nenhum membro ainda.</p>}
                 <div className="space-y-2">
-                  {group.members.map((m, idx) => (
+                  {members.map((m, idx) => (
                     <div key={m.id} className="bg-muted rounded-2xl p-3 flex items-center gap-3">
                       <Avatar initials={m.initials} size="sm" index={idx} />
                       <span className="flex-1 font-medium text-foreground">{m.name}</span>
@@ -398,7 +308,7 @@ function TutorGroupChat({ group, onBack, onUpdateGroup }: { group: Group; onBack
         <div className="w-10 h-10 bg-[#EEF0FF] rounded-2xl flex items-center justify-center text-xl shrink-0">{group.emoji}</div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-foreground leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{group.name}</p>
-          <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{group.members.length} membros</p>
+          <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{members.length} membros</p>
         </div>
         <button
           onClick={() => setShowMembers(true)}
@@ -457,9 +367,10 @@ function TutorGroupChat({ group, onBack, onUpdateGroup }: { group: Group; onBack
 
 // ─── Grupos ───────────────────────────────────────────────────────────────────
 
-function PageGrupos() {
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+function PageGrupos({ seniors }: { seniors: TutorSenior[] }) {
+  const [groups, setGroups] = useState<TutorGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeGroup, setActiveGroup] = useState<TutorGroup | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmoji, setNewEmoji] = useState("🌟");
@@ -467,31 +378,42 @@ function PageGrupos() {
 
   const emojis = ["🌅", "❤️", "🏠", "🌟", "🏃", "💪", "🎯", "🌿", "🎉", "🧘"];
 
-  const updateGroup = (updated: Group) => {
+  useEffect(() => {
+    api.listTutorGroups().then(setGroups).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const onUpdated = (updated: TutorGroup) => {
     setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
     setActiveGroup(updated);
   };
 
-  const createGroup = () => {
+  const createGroup = async () => {
     if (!newName.trim()) return;
-    setGroups((prev) => [...prev, {
-      id: Date.now(), name: newName.trim(), emoji: newEmoji,
-      description: newDesc.trim(), members: [], messages: [],
-      createdAt: new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" }),
-    }]);
-    setNewName(""); setNewDesc(""); setNewEmoji("🌟"); setShowNew(false);
+    try {
+      const g = await api.createTutorGroup({ name: newName.trim(), emoji: newEmoji, description: newDesc.trim() });
+      setGroups((prev) => [...prev, g]);
+      setNewName(""); setNewDesc(""); setNewEmoji("🌟"); setShowNew(false);
+    } catch {
+      /* ignore */
+    }
   };
 
-  const deleteGroup = (id: number) => {
-    setGroups((prev) => prev.filter((g) => g.id !== id));
+  const deleteGroup = async (id: number) => {
+    try {
+      await api.deleteTutorGroup(id);
+      setGroups((prev) => prev.filter((g) => g.id !== id));
+    } catch {
+      /* ignore */
+    }
   };
 
   if (activeGroup) {
     return (
       <TutorGroupChat
         group={activeGroup}
+        seniors={seniors}
         onBack={() => setActiveGroup(null)}
-        onUpdateGroup={updateGroup}
+        onUpdated={onUpdated}
       />
     );
   }
@@ -528,6 +450,7 @@ function PageGrupos() {
       )}
 
       <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-3">
+        {loading && <p className="text-muted-foreground text-sm text-center pt-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Carregando...</p>}
         {groups.map((g) => {
           const lastMsg = g.messages[g.messages.length - 1];
           return (
@@ -574,25 +497,27 @@ function PageGrupos() {
 // ─── Avisos ───────────────────────────────────────────────────────────────────
 
 function PageAvisos() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const [selectedGroupId, setSelectedGroupId] = useState<number | "all">(initialGroups[0].id);
+  const [announcements, setAnnouncements] = useState<TutorAnnouncement[]>([]);
+  const [groups, setGroups] = useState<TutorGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | "all">("all");
   const [text, setText] = useState("");
 
-  const send = () => {
+  useEffect(() => {
+    Promise.all([api.listAnnouncements(), api.listTutorGroups()])
+      .then(([a, g]) => { setAnnouncements(a); setGroups(g); })
+      .catch(() => {});
+  }, []);
+
+  const send = async () => {
     const t = text.trim();
     if (!t) return;
-    const isAll = selectedGroupId === "all";
-    const group = !isAll ? groups.find((g) => g.id === selectedGroupId) : null;
-    setAnnouncements((prev) => [{
-      id: Date.now(),
-      targetAll: isAll,
-      groupId: group?.id,
-      groupName: group?.name,
-      text: t,
-      time: `Agora, ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
-    }, ...prev]);
-    setText("");
+    try {
+      const ann = await api.createAnnouncement(t, selectedGroupId === "all" ? null : selectedGroupId);
+      setAnnouncements((prev) => [ann, ...prev]);
+      setText("");
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -671,155 +596,217 @@ function PageAvisos() {
 // ─── Atividades ───────────────────────────────────────────────────────────────
 
 function PageAtividades() {
-  const [filterCat, setFilterCat] = useState("Todas");
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [created, setCreated] = useState<CreatedActivity[]>([]);
+  const [running, setRunning] = useState<RunningActivity[]>([]);
+  const [groups, setGroups] = useState<TutorGroup[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const categories = ["Todas", "Alongamento", "Equilíbrio", "Cardio", "Força", "Respiração"];
-  const filtered = filterCat === "Todas" ? activities : activities.filter((a) => a.category === filterCat);
+  // Create form
+  const [showNew, setShowNew] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formCat, setFormCat] = useState("Alongamento");
+  const [formDuration, setFormDuration] = useState("10");
+  const [formDesc, setFormDesc] = useState("");
 
-  const totalCompletions = activities.reduce((sum, a) => sum + a.completedBy.length, 0);
-  const mostPopular = [...activities].sort((a, b) => b.completedBy.length - a.completedBy.length)[0];
+  // Dispatch modal
+  const [dispatchTarget, setDispatchTarget] = useState<CreatedActivity | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
-  if (selectedActivity) {
-    const completors = allSeniors.filter((s) => selectedActivity.completedBy.includes(s.id));
-    const notDone = allSeniors.filter((s) => !selectedActivity.completedBy.includes(s.id));
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-border shrink-0">
-          <button onClick={() => setSelectedActivity(null)} className="flex items-center gap-1 text-[#4A52B2] font-semibold text-sm mb-3" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            <ChevronLeft size={16} /> Atividades
-          </button>
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${categoryColors[selectedActivity.category] || "bg-muted text-muted-foreground"}`}>
-              {selectedActivity.icon}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif" }}>{selectedActivity.name}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${categoryColors[selectedActivity.category]}`} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{selectedActivity.category}</span>
-                <span className="text-xs text-muted-foreground flex items-center gap-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}><Clock size={11} /> {selectedActivity.duration} min</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Progress bar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Concluído hoje</p>
-              <p className="text-sm font-semibold text-[#4A52B2]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{completors.length}/{allSeniors.length}</p>
-            </div>
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-[#4A52B2] rounded-full transition-all" style={{ width: `${(completors.length / allSeniors.length) * 100}%` }} />
-            </div>
-          </div>
+  const categories = ["Alongamento", "Equilíbrio", "Cardio", "Força", "Respiração"];
 
-          {completors.length > 0 && (
-            <div>
-              <SectionLabel>✅ Já fizeram hoje ({completors.length})</SectionLabel>
-              <div className="space-y-2">
-                {completors.map((s, idx) => (
-                  <div key={s.id} className="bg-[#EBF5ED] rounded-2xl p-3 flex items-center gap-3 border border-[#4E7E57]/20">
-                    <Avatar initials={s.initials} size="sm" index={idx} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.name}</p>
-                      <p className="text-xs text-[#3D6B45]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>🔥 Sequência: {s.streak} dias</p>
-                    </div>
-                    <Check size={16} className="text-secondary shrink-0" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+  useEffect(() => {
+    Promise.all([api.listTutorActivities(), api.listRunningActivities(), api.listTutorGroups()])
+      .then(([c, r, g]) => { setCreated(c); setRunning(r); setGroups(g); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-          {notDone.length > 0 && (
-            <div>
-              <SectionLabel>⏳ Ainda não fizeram ({notDone.length})</SectionLabel>
-              <div className="space-y-2">
-                {notDone.map((s, idx) => (
-                  <div key={s.id} className="bg-muted rounded-2xl p-3 flex items-center gap-3">
-                    <Avatar initials={s.initials} size="sm" index={idx + 10} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.name}</p>
-                      <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Último acesso: {s.lastActive}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  const resetForm = () => { setFormName(""); setFormCat("Alongamento"); setFormDuration("10"); setFormDesc(""); };
+
+  const createActivity = async () => {
+    if (!formName.trim()) return;
+    try {
+      const a = await api.createTutorActivity({ name: formName.trim(), category: formCat, duration: Number(formDuration) || 10, description: formDesc.trim() });
+      setCreated((prev) => [...prev, a]);
+      resetForm(); setShowNew(false);
+    } catch { /* ignore */ }
+  };
+
+  const deleteActivity = async (id: number) => {
+    try { await api.deleteTutorActivity(id); setCreated((prev) => prev.filter((a) => a.id !== id)); } catch { /* ignore */ }
+  };
+
+  const openDispatch = (a: CreatedActivity) => { setDispatchTarget(a); setSelectedGroupId(groups[0]?.id ?? null); };
+
+  const doDispatch = async () => {
+    if (!dispatchTarget || selectedGroupId === null) return;
+    try {
+      const r = await api.dispatchActivity(dispatchTarget.id, selectedGroupId);
+      setRunning((prev) => [r, ...prev]);
+      setDispatchTarget(null);
+    } catch { /* ignore */ }
+  };
+
+  const endRunning = async (id: number) => {
+    try { await api.endRunningActivity(id); setRunning((prev) => prev.filter((r) => r.id !== id)); } catch { /* ignore */ }
+  };
+
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-5 pt-6 pb-4 shrink-0">
-        <h1 className="text-3xl font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif" }}>Atividades</h1>
-        <p className="text-muted-foreground text-base mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Acompanhe o progresso de cada exercício</p>
-      </div>
-
-      {/* Summary cards */}
-      <div className="px-5 mb-4 grid grid-cols-2 gap-3 shrink-0">
-        <div className="bg-[#EEF0FF] rounded-2xl p-3">
-          <p className="text-2xl font-bold text-[#4A52B2]" style={{ fontFamily: "'Fraunces', serif" }}>{totalCompletions}</p>
-          <p className="text-xs font-medium text-[#3A4299] mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>exercícios concluídos hoje</p>
-        </div>
-        <div className="bg-[#FFF0EB] rounded-2xl p-3">
-          <p className="text-sm font-bold text-[#D95C35] leading-tight" style={{ fontFamily: "'Fraunces', serif" }}>{mostPopular.name}</p>
-          <p className="text-xs font-medium text-[#A04020] mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>mais popular hoje</p>
-        </div>
-      </div>
-
-      {/* Category filter */}
-      <div className="px-5 mb-3 shrink-0">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilterCat(cat)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold transition-all ${filterCat === cat ? "bg-[#4A52B2] text-white" : "bg-card text-muted-foreground border border-border"}`}
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-2">
-        {filtered.map((act) => {
-          const pct = Math.round((act.completedBy.length / allSeniors.length) * 100);
-          return (
-            <button
-              key={act.id}
-              onClick={() => setSelectedActivity(act)}
-              className="w-full bg-card rounded-2xl p-4 border border-border text-left hover:border-[#4A52B2]/30 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryColors[act.category] || "bg-muted text-muted-foreground"}`}>
-                  {act.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <p className="font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.9rem" }}>{act.name}</p>
-                    <span className="text-xs font-semibold text-[#4A52B2] shrink-0" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{act.completedBy.length}/{allSeniors.length}</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-[#4A52B2] rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      <Clock size={11} />{act.duration} min · {act.level}
-                    </span>
-                    <span className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{pct}% concluíram</span>
-                  </div>
-                </div>
+    <div className="relative flex flex-col h-full overflow-hidden">
+      {/* Dispatch modal */}
+      {dispatchTarget && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDispatchTarget(null)} />
+          <div className="relative bg-background rounded-3xl w-full shadow-2xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif", fontSize: "1.2rem" }}>Disponibilizar atividade</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Escolha o grupo que receberá a atividade</p>
               </div>
+              <button onClick={() => setDispatchTarget(null)} className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"><X size={16} /></button>
+            </div>
+            {/* Preview */}
+            <div className="bg-[#EEF0FF] rounded-2xl p-4 border border-[#4A52B2]/20 flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryColors[dispatchTarget.category] || "bg-white"}`}><ActivityIcon name={dispatchTarget.icon} /></div>
+              <div>
+                <p className="font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif" }}>{dispatchTarget.name}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock size={11} />{dispatchTarget.duration} min · {dispatchTarget.category}</p>
+              </div>
+            </div>
+            {/* Group selector */}
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-2">Disponibilizar para</p>
+              {groups.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum grupo disponível.</p>
+              ) : (
+                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
+                  {groups.map((g) => (
+                    <button key={g.id} onClick={() => setSelectedGroupId(g.id)} className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${selectedGroupId === g.id ? "border-[#4A52B2] bg-[#EEF0FF]" : "border-border bg-card"}`}>
+                      <span className="text-xl">{g.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground text-sm">{g.name}</p>
+                        <p className="text-xs text-muted-foreground">{g.members.length} membros</p>
+                      </div>
+                      {selectedGroupId === g.id && <Check size={16} className="text-[#4A52B2] shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={doDispatch} disabled={selectedGroupId === null} className="w-full py-4 bg-[#4A52B2] text-white rounded-2xl font-semibold text-base hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40">
+              <Send size={18} /> Disponibilizar para {selectedGroup?.name ?? "grupo"}
             </button>
-          );
-        })}
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="px-5 pt-6 pb-4 shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif" }}>Atividades</h1>
+            <p className="text-muted-foreground text-base mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Crie e disponibilize atividades</p>
+          </div>
+          <button onClick={() => setShowNew((v) => !v)} className="w-11 h-11 bg-[#4A52B2] text-white rounded-full flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity">
+            {showNew ? <X size={20} /> : <Plus size={22} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Create form */}
+      {showNew && (
+        <div className="mx-5 mb-4 bg-[#EEF0FF] rounded-2xl p-4 border border-[#4A52B2]/20 shrink-0 space-y-3">
+          <p className="font-semibold text-[#4A52B2] flex items-center gap-2"><Dumbbell size={15} /> Nova atividade</p>
+          <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Nome da atividade" className="w-full bg-white rounded-xl px-3 py-2.5 text-foreground placeholder:text-muted-foreground outline-none border border-border text-sm" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
+              <select value={formCat} onChange={(e) => setFormCat(e.target.value)} className="w-full appearance-none bg-white rounded-xl px-3 py-2.5 text-foreground outline-none border border-border text-sm pr-8">
+                {categories.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            </div>
+            <input value={formDuration} onChange={(e) => setFormDuration(e.target.value)} placeholder="Duração (min)" type="number" min={1} className="bg-white rounded-xl px-3 py-2.5 text-foreground placeholder:text-muted-foreground outline-none border border-border text-sm" />
+          </div>
+          <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Descrição (opcional)" rows={2} className="w-full bg-white rounded-xl px-3 py-2.5 text-foreground placeholder:text-muted-foreground outline-none border border-border text-sm resize-none" />
+          <div className="flex gap-2">
+            <button onClick={() => { resetForm(); setShowNew(false); }} className="flex-1 py-2.5 rounded-xl border border-border bg-white text-muted-foreground text-sm font-medium">Cancelar</button>
+            <button onClick={createActivity} disabled={!formName.trim()} className="flex-1 py-2.5 rounded-xl bg-[#4A52B2] text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-1.5"><Plus size={14} /> Criar atividade</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-6">
+        {loading && <p className="text-muted-foreground text-sm text-center pt-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Carregando...</p>}
+
+        {/* Em execução */}
+        {running.length > 0 && (
+          <div>
+            <SectionLabel>▶️ Em execução ({running.length})</SectionLabel>
+            <div className="space-y-3">
+              {running.map((r) => {
+                const pct = r.totalMembers ? Math.round((r.completedCount / r.totalMembers) * 100) : 0;
+                return (
+                  <div key={r.id} className="bg-[#F7F8FF] rounded-2xl border border-[#4A52B2]/25 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryColors[r.category] || "bg-muted text-muted-foreground"}`}><ActivityIcon name={r.icon} /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.name}</p>
+                          <span className="text-xs text-muted-foreground shrink-0">{r.startedLabel}</span>
+                        </div>
+                        <p className="text-xs text-[#4A52B2] font-medium mt-0.5">Grupo: {r.groupName}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-foreground">Concluíram</span>
+                        <span className="text-xs font-semibold text-[#4A52B2]">{r.completedCount}/{r.totalMembers}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-[#4A52B2] rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      {r.completors.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1.5">✅ {r.completors.map((n) => n.split(" ")[0]).join(", ")}</p>
+                      )}
+                    </div>
+                    <button onClick={() => endRunning(r.id)} className="mt-3 w-full py-2 border border-destructive/30 text-destructive rounded-xl font-semibold text-sm hover:bg-[#FBECEC] transition-colors flex items-center justify-center gap-2">
+                      <X size={14} /> Encerrar
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Criadas */}
+        <div>
+          <SectionLabel>Atividades criadas ({created.length})</SectionLabel>
+          <div className="space-y-2">
+            {created.map((a) => (
+              <div key={a.id} className="bg-card rounded-2xl p-4 border border-border">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${categoryColors[a.category] || "bg-muted text-muted-foreground"}`}><ActivityIcon name={a.icon} /></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground truncate" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.9rem" }}>{a.name}</p>
+                      {a.isCustom && <span className="shrink-0 text-[10px] font-semibold bg-[#EEF0FF] text-[#4A52B2] px-1.5 py-0.5 rounded-full">Personalizada</span>}
+                    </div>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Clock size={11} />{a.duration} min · {a.category}</span>
+                  </div>
+                  {a.isCustom && (
+                    <button onClick={() => deleteActivity(a.id)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#FFF0EB] text-muted-foreground hover:bg-destructive hover:text-white transition-colors shrink-0"><Trash2 size={14} /></button>
+                  )}
+                </div>
+                <button onClick={() => openDispatch(a)} className="mt-3 w-full py-2.5 bg-[#4A52B2] text-white rounded-xl font-semibold text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                  <Send size={14} /> Disponibilizar para grupo
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -829,17 +816,12 @@ function PageAtividades() {
 
 const activityTypes = ["Alongamento", "Equilíbrio", "Cardio", "Força", "Respiração", "Yoga", "Dança", "Meditação"];
 
-const initialEvents: LiveEvent[] = [
-  { id: 1, title: "Alongamento Matinal em Grupo", activityType: "Alongamento", scheduledAt: "Hoje às 09:00", duration: 20, description: "Sessão guiada de alongamento para começar o dia com energia.", status: "sent", sentToGroup: "Turma da Manhã", sentAt: "Hoje, 08:25" },
-  { id: 2, title: "Respiração e Relaxamento", activityType: "Respiração", scheduledAt: "Amanhã às 10:00", duration: 15, description: "Técnicas de respiração profunda para reduzir ansiedade.", status: "saved" },
-  { id: 3, title: "Equilíbrio e Postura", activityType: "Equilíbrio", scheduledAt: "Sex às 09:30", duration: 25, description: "Exercícios de equilíbrio para prevenção de quedas.", status: "saved" },
-];
-
 function PageEventos() {
-  const [events, setEvents] = useState<LiveEvent[]>(initialEvents);
+  const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [groups, setGroups] = useState<TutorGroup[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [sendTarget, setSendTarget] = useState<LiveEvent | null>(null);
-  const [selectedGroupName, setSelectedGroupName] = useState(initialGroups[0].name);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -848,38 +830,60 @@ function PageEventos() {
   const [formDuration, setFormDuration] = useState("20");
   const [formDesc, setFormDesc] = useState("");
 
+  useEffect(() => {
+    Promise.all([api.listEvents(), api.listTutorGroups()])
+      .then(([e, g]) => { setEvents(e); setGroups(g); })
+      .catch(() => {});
+  }, []);
+
   const resetForm = () => { setFormTitle(""); setFormType(activityTypes[0]); setFormDate(""); setFormDuration("20"); setFormDesc(""); };
 
-  const saveEvent = () => {
+  const saveEvent = async () => {
     if (!formTitle.trim()) return;
-    setEvents((prev) => [...prev, {
-      id: Date.now(),
-      title: formTitle.trim(),
-      activityType: formType,
-      scheduledAt: formDate || "A definir",
-      duration: Number(formDuration) || 20,
-      description: formDesc.trim(),
-      status: "saved",
-    }]);
-    resetForm();
-    setShowForm(false);
+    try {
+      const ev = await api.createEvent({
+        title: formTitle.trim(),
+        activityType: formType,
+        scheduledAt: formDate || "A definir",
+        duration: Number(formDuration) || 20,
+        description: formDesc.trim(),
+      });
+      setEvents((prev) => [...prev, ev]);
+      resetForm();
+      setShowForm(false);
+    } catch {
+      /* ignore */
+    }
   };
 
-  const sendEvent = () => {
-    if (!sendTarget) return;
-    const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    setEvents((prev) => prev.map((e) =>
-      e.id === sendTarget.id
-        ? { ...e, status: "sent", sentToGroup: selectedGroupName, sentAt: `Agora, ${now}` }
-        : e
-    ));
-    setSendTarget(null);
+  const openSend = (ev: LiveEvent) => {
+    setSendTarget(ev);
+    setSelectedGroupId(groups[0]?.id ?? null);
   };
 
-  const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e) => e.id !== id));
+  const sendEvent = async () => {
+    if (!sendTarget || selectedGroupId === null) return;
+    try {
+      const updated = await api.sendEvent(sendTarget.id, selectedGroupId);
+      setEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setSendTarget(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const deleteEvent = async (id: number) => {
+    try {
+      await api.deleteEvent(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const saved = events.filter((e) => e.status === "saved");
-  const sent  = events.filter((e) => e.status === "sent");
+  const sent = events.filter((e) => e.status === "sent");
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -915,12 +919,12 @@ function PageEventos() {
             <div>
               <p className="text-sm font-semibold text-foreground mb-2">Enviar para</p>
               <div className="flex flex-col gap-2">
-                {initialGroups.map((g) => (
+                {groups.map((g) => (
                   <button
                     key={g.id}
-                    onClick={() => setSelectedGroupName(g.name)}
+                    onClick={() => setSelectedGroupId(g.id)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                      selectedGroupName === g.name ? "border-[#4A52B2] bg-[#EEF0FF]" : "border-border bg-card"
+                      selectedGroupId === g.id ? "border-[#4A52B2] bg-[#EEF0FF]" : "border-border bg-card"
                     }`}
                   >
                     <span className="text-xl">{g.emoji}</span>
@@ -928,7 +932,7 @@ function PageEventos() {
                       <p className="font-semibold text-foreground text-sm">{g.name}</p>
                       <p className="text-xs text-muted-foreground">{g.members.length} membros</p>
                     </div>
-                    {selectedGroupName === g.name && <Check size={16} className="text-[#4A52B2] shrink-0" />}
+                    {selectedGroupId === g.id && <Check size={16} className="text-[#4A52B2] shrink-0" />}
                   </button>
                 ))}
               </div>
@@ -936,9 +940,10 @@ function PageEventos() {
 
             <button
               onClick={sendEvent}
-              className="w-full py-4 bg-[#4A52B2] text-white rounded-2xl font-semibold text-base hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              disabled={selectedGroupId === null}
+              className="w-full py-4 bg-[#4A52B2] text-white rounded-2xl font-semibold text-base hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40"
             >
-              <Send size={18} /> Enviar para {selectedGroupName}
+              <Send size={18} /> Enviar para {selectedGroup?.name ?? "grupo"}
             </button>
           </div>
         </div>
@@ -1050,7 +1055,7 @@ function PageEventos() {
                   </div>
                   <div className="px-4 pb-4">
                     <button
-                      onClick={() => { setSendTarget(ev); setSelectedGroupName(initialGroups[0].name); }}
+                      onClick={() => openSend(ev)}
                       className="w-full py-2.5 bg-[#4A52B2] text-white rounded-xl font-semibold text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                       <Send size={14} /> Enviar para grupo
@@ -1082,7 +1087,7 @@ function PageEventos() {
                     <span className="flex items-center gap-1"><Clock size={11} />{ev.duration} min</span>
                   </div>
                   <button
-                    onClick={() => { setSendTarget(ev); setSelectedGroupName(initialGroups[0].name); }}
+                    onClick={() => openSend(ev)}
                     className="mt-3 w-full py-2 border border-[#4A52B2]/30 text-[#4A52B2] rounded-xl font-semibold text-sm hover:bg-[#EEF0FF] transition-colors flex items-center justify-center gap-2"
                   >
                     <Send size={13} /> Enviar para outro grupo
@@ -1111,6 +1116,11 @@ function PageEventos() {
 
 export function TutorApp({ tutorName }: { tutorName: string; onLogout?: () => void }) {
   const [tab, setTab] = useState<TutorTab>("home");
+  const [seniors, setSeniors] = useState<TutorSenior[]>([]);
+
+  useEffect(() => {
+    api.listSeniors().then(setSeniors).catch(() => {});
+  }, []);
 
   const navItems: { id: TutorTab; label: string; icon: React.ReactNode }[] = [
     { id: "home",      label: "Início",     icon: <Home size={20} /> },
@@ -1142,8 +1152,8 @@ export function TutorApp({ tutorName }: { tutorName: string; onLogout?: () => vo
 
       {/* Page content */}
       <div className="flex-1 overflow-hidden">
-        {tab === "home"       && <PageHome tutorName={tutorName} />}
-        {tab === "groups"     && <PageGrupos />}
+        {tab === "home"       && <PageHome tutorName={tutorName} seniors={seniors} />}
+        {tab === "groups"     && <PageGrupos seniors={seniors} />}
         {tab === "avisos"     && <PageAvisos />}
         {tab === "atividades" && <PageAtividades />}
         {tab === "eventos"    && <PageEventos />}
