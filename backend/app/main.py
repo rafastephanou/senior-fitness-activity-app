@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from . import models  # noqa: F401 — registers all models on Base.metadata
-from .api.routes import auth, exercises, friends, groups
+from .api.routes import auth, exercises, friends, groups, tutor
 from .core.config import settings
 from .core.database import Base, SessionLocal, engine
 from .db.seed import seed
@@ -50,6 +50,7 @@ app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(exercises.router, prefix=API_PREFIX)
 app.include_router(friends.router, prefix=API_PREFIX)
 app.include_router(groups.router, prefix=API_PREFIX)
+app.include_router(tutor.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

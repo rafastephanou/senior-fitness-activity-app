@@ -27,7 +27,14 @@ def get_current_user(
 
 
 def require_senior(user: User = Depends(get_current_user)) -> User:
-    """Guard for senior-only endpoints (tutor endpoints will get their own guard)."""
+    """Guard for senior-only endpoints."""
     if user.role != "senior":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seniors only")
+    return user
+
+
+def require_tutor(user: User = Depends(get_current_user)) -> User:
+    """Guard for tutor-only endpoints."""
+    if user.role != "tutor":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tutors only")
     return user
