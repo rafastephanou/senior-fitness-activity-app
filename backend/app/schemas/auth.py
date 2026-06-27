@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     name: str
     initials: str
     role: str
+    email: str
 
 
 class LoginResponse(BaseModel):

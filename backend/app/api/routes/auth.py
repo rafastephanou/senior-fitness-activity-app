@@ -23,10 +23,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     token = security.create_access_token(user.id, user.role)
     return LoginResponse(
         access_token=token,
-        user=UserOut(id=user.id, name=user.name, initials=user.initials, role=user.role),
+        user=UserOut(id=user.id, name=user.name, initials=user.initials, role=user.role, email=user.email),
     )
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
-    return UserOut(id=user.id, name=user.name, initials=user.initials, role=user.role)
+    return UserOut(id=user.id, name=user.name, initials=user.initials, role=user.role, email=user.email)
