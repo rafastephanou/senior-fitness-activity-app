@@ -54,6 +54,7 @@ export interface SessionUser {
   name: string;
   initials: string;
   role: Role;
+  email: string;
 }
 
 export interface EventCard {
@@ -132,6 +133,102 @@ export interface Group {
   messages: Message[];
 }
 
+// ─── Tutor types ──────────────────────────────────────────────────────────────
+
+export interface TutorSenior {
+  id: number;
+  name: string;
+  initials: string;
+  age: number;
+  exercisesThisWeek: number;
+  exercisesToday: number;
+  streak: number;
+  lastActive: string;
+  alert?: string | null;
+  groups: string[];
+}
+
+export interface TutorMember {
+  id: number;
+  name: string;
+  initials: string;
+}
+
+export interface TutorChatMessage {
+  id: number;
+  sender: "tutor" | "member";
+  senderName: string;
+  text: string;
+  time: string;
+}
+
+export interface TutorGroup {
+  id: number;
+  name: string;
+  emoji: string;
+  description: string;
+  members: TutorMember[];
+  messages: TutorChatMessage[];
+}
+
+export interface TutorAnnouncement {
+  id: number;
+  targetAll: boolean;
+  groupId?: number | null;
+  groupName?: string | null;
+  text: string;
+  time: string;
+}
+
+export interface CreatedActivity {
+  id: number;
+  name: string;
+  category: string;
+  duration: number;
+  level: string;
+  icon: string;
+  description: string;
+  isCustom: boolean;
+}
+
+export interface RunningActivity {
+  id: number;
+  name: string;
+  category: string;
+  icon: string;
+  duration: number;
+  groupId: number;
+  groupName: string;
+  startedLabel: string;
+  completedCount: number;
+  totalMembers: number;
+  completors: string[];
+}
+
+export interface AssignedActivity {
+  id: number;
+  name: string;
+  category: string;
+  duration: number;
+  level: string;
+  icon: string;
+  description: string;
+  groupName: string;
+  completed: boolean;
+}
+
+export interface LiveEvent {
+  id: number;
+  title: string;
+  activityType: string;
+  scheduledAt: string;
+  duration: number;
+  description: string;
+  status: "saved" | "sent";
+  sentToGroup?: string | null;
+  sentAt?: string | null;
+}
+
 interface LoginResponse {
   access_token: string;
   token_type: string;
@@ -151,6 +248,9 @@ export const api = {
   listExercises: () => request<Exercise[]>("/exercises"),
   toggleExercise: (id: number) =>
     request<{ completed: boolean }>(`/exercises/${id}/toggle`, { method: "POST" }),
+  listAssignedActivities: () => request<AssignedActivity[]>("/exercises/assigned"),
+  toggleAssignedActivity: (id: number) =>
+    request<{ completed: boolean }>(`/exercises/assigned/${id}/toggle`, { method: "POST" }),
 
   listFriends: () => request<Friend[]>("/friends"),
   listFriendRequests: () => request<FriendRequest[]>("/friends/requests"),
@@ -170,4 +270,58 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
+
+  // ── Tutor ──
+  listSeniors: () => request<TutorSenior[]>("/tutor/seniors"),
+  listTutorGroups: () => request<TutorGroup[]>("/tutor/groups"),
+  createTutorGroup: (data: { name: string; emoji: string; description: string }) =>
+    request<TutorGroup>("/tutor/groups", { method: "POST", body: JSON.stringify(data) }),
+  deleteTutorGroup: (id: number) =>
+    request<{ ok: boolean }>(`/tutor/groups/${id}`, { method: "DELETE" }),
+  addGroupMember: (groupId: number, seniorId: number) =>
+    request<TutorGroup>(`/tutor/groups/${groupId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ senior_id: seniorId }),
+    }),
+  removeGroupMember: (groupId: number, seniorId: number) =>
+    request<TutorGroup>(`/tutor/groups/${groupId}/members/${seniorId}`, { method: "DELETE" }),
+  sendTutorGroupMessage: (groupId: number, text: string) =>
+    request<TutorChatMessage>(`/tutor/groups/${groupId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  listAnnouncements: () => request<TutorAnnouncement[]>("/tutor/announcements"),
+  createAnnouncement: (text: string, groupId: number | null) =>
+    request<TutorAnnouncement>("/tutor/announcements", {
+      method: "POST",
+      body: JSON.stringify({ text, group_id: groupId }),
+    }),
+  listTutorActivities: () => request<CreatedActivity[]>("/tutor/activities"),
+  createTutorActivity: (data: { name: string; category: string; duration: number; description: string }) =>
+    request<CreatedActivity>("/tutor/activities", { method: "POST", body: JSON.stringify(data) }),
+  deleteTutorActivity: (id: number) =>
+    request<{ ok: boolean }>(`/tutor/activities/${id}`, { method: "DELETE" }),
+  dispatchActivity: (activityId: number, groupId: number) =>
+    request<RunningActivity>(`/tutor/activities/${activityId}/dispatch`, {
+      method: "POST",
+      body: JSON.stringify({ group_id: groupId }),
+    }),
+  listRunningActivities: () => request<RunningActivity[]>("/tutor/running"),
+  endRunningActivity: (id: number) =>
+    request<{ ok: boolean }>(`/tutor/running/${id}`, { method: "DELETE" }),
+  listEvents: () => request<LiveEvent[]>("/tutor/events"),
+  createEvent: (data: {
+    title: string;
+    activityType: string;
+    scheduledAt: string;
+    duration: number;
+    description: string;
+  }) => request<LiveEvent>("/tutor/events", { method: "POST", body: JSON.stringify(data) }),
+  sendEvent: (eventId: number, groupId: number) =>
+    request<LiveEvent>(`/tutor/events/${eventId}/send`, {
+      method: "POST",
+      body: JSON.stringify({ group_id: groupId }),
+    }),
+  deleteEvent: (id: number) =>
+    request<{ ok: boolean }>(`/tutor/events/${id}`, { method: "DELETE" }),
 };
