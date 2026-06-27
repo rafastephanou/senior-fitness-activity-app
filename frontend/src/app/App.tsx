@@ -19,6 +19,7 @@ import {
   X,
   Play,
   UserPlus,
+  LogOut,
 } from "lucide-react";
 import { LoginScreen } from "./components/LoginScreen";
 import { TutorApp } from "./components/TutorApp";
@@ -31,6 +32,7 @@ import type {
   FriendRequest,
   Group,
   GroupMemberEntry,
+  AssignedActivity,
 } from "../lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -165,7 +167,7 @@ function ExerciseModal({ exercise, completed, onToggle, onClose }: { exercise: E
   );
 }
 
-function ExercisesView({ exercises, onToggle, userName }: { exercises: Exercise[]; onToggle: (id: number) => void; userName: string }) {
+function ExercisesView({ exercises, onToggle, userName, assigned, onToggleAssigned }: { exercises: Exercise[]; onToggle: (id: number) => void; userName: string; assigned: AssignedActivity[]; onToggleAssigned: (id: number) => void }) {
   const [filter, setFilter] = useState("Todos");
   const [selected, setSelected] = useState<Exercise | null>(null);
   const categories = ["Todos", "Alongamento", "Equilíbrio", "Cardio", "Força", "Respiração"];
@@ -218,6 +220,53 @@ function ExercisesView({ exercises, onToggle, userName }: { exercises: Exercise[
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-3">
+        {assigned.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-[#4A52B2] uppercase tracking-wide" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Atividades do seu tutor
+            </p>
+            {assigned.map((a) => {
+              const done = a.completed;
+              return (
+                <div
+                  key={`assigned-${a.id}`}
+                  className={`w-full text-left rounded-2xl p-4 border transition-all duration-200 ${done ? "border-secondary/30 bg-[#F4FAF5]" : "border-[#4A52B2]/25 bg-[#F7F8FF]"}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors ${done ? "bg-secondary text-white" : "bg-[#EEF0FF] text-[#4A52B2]"}`}>
+                      {done ? <Check size={22} /> : <ExerciseIcon name={a.icon} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className={`font-semibold leading-tight ${done ? "text-muted-foreground line-through" : "text-foreground"}`} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "1rem" }}>
+                          {a.name}
+                        </h3>
+                        <button
+                          onClick={() => onToggleAssigned(a.id)}
+                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${done ? "bg-secondary border-secondary text-white" : "border-[#4A52B2]/40 bg-background hover:border-[#4A52B2]"}`}
+                        >
+                          {done && <Check size={14} />}
+                        </button>
+                      </div>
+                      {a.description && (
+                        <p className="text-muted-foreground text-sm mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{a.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="flex items-center gap-1 text-sm text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          <Clock size={14} />{a.duration} min
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#EEF0FF] text-[#4A52B2]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          do tutor · {a.groupName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="border-t border-border" />
+          </div>
+        )}
         {filtered.map((ex) => {
           const done = ex.completed;
           const doneFriends = ex.friendsDone ?? [];
@@ -729,17 +778,73 @@ function GroupsView({ friendNames, pendingInvites, onInvite, currentUserName }: 
   );
 }
 
+// ─── Profile ──────────────────────────────────────────────────────────────────
+
+function ProfileView({ user, onBack, onLogout }: { user: SessionUser; onBack: () => void; onLogout: () => void }) {
+  const roleLabel = user.role === "tutor" ? "Tutor" : "Idoso";
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-4 bg-card border-b border-border shrink-0">
+        <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-foreground">
+          <ChevronLeft size={24} />
+        </button>
+        <h1 className="font-bold text-foreground" style={{ fontFamily: "'Fraunces', serif", fontSize: "1.3rem" }}>Meu Perfil</h1>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col items-center">
+        {/* Avatar */}
+        <div className="w-24 h-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl font-bold shadow-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {user.initials}
+        </div>
+        <h2 className="mt-4 text-2xl font-bold text-foreground text-center" style={{ fontFamily: "'Fraunces', serif" }}>{user.name}</h2>
+        <span className="mt-2 text-sm font-semibold bg-[#FFF0EB] text-primary px-3 py-1 rounded-full" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{roleLabel}</span>
+
+        {/* Info card */}
+        <div className="w-full mt-8 bg-card border border-border rounded-2xl divide-y divide-border" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div className="px-4 py-3.5">
+            <p className="text-xs text-muted-foreground">Nome completo</p>
+            <p className="text-base font-semibold text-foreground mt-0.5">{user.name}</p>
+          </div>
+          <div className="px-4 py-3.5">
+            <p className="text-xs text-muted-foreground">E-mail</p>
+            <p className="text-base font-semibold text-foreground mt-0.5">{user.email}</p>
+          </div>
+          <div className="px-4 py-3.5">
+            <p className="text-xs text-muted-foreground">Tipo de conta</p>
+            <p className="text-base font-semibold text-foreground mt-0.5">{roleLabel}</p>
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button
+          onClick={onLogout}
+          className="w-full mt-8 py-4 rounded-2xl font-semibold text-base bg-[#FBECEC] text-destructive border-2 border-destructive/20 hover:bg-[#F8E0E0] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+        >
+          <LogOut size={20} />
+          Sair da conta
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Senior App ───────────────────────────────────────────────────────────────
 
-function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => void }) {
+function SeniorApp({ user, onLogout }: { user: SessionUser; onLogout: () => void }) {
+  const userName = user.name;
   const [tab, setTab] = useState<Tab>("exercises");
+  const [showProfile, setShowProfile] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [assigned, setAssigned] = useState<AssignedActivity[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
   const [openTutorChat, setOpenTutorChat] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<Set<string>>(new Set());
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set());
 
   useEffect(() => { api.listExercises().then(setExercises).catch(() => {}); }, []);
+  useEffect(() => { api.listAssignedActivities().then(setAssigned).catch(() => {}); }, []);
   useEffect(() => {
     api.listFriends().then((fs) => setFriendNames(new Set(fs.map((f) => f.name)))).catch(() => {});
   }, []);
@@ -753,6 +858,15 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
     } catch {
       // revert on failure
       setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+    }
+  };
+
+  const toggleAssigned = async (id: number) => {
+    setAssigned((prev) => prev.map((a) => (a.id === id ? { ...a, completed: !a.completed } : a)));
+    try {
+      await api.toggleAssignedActivity(id);
+    } catch {
+      setAssigned((prev) => prev.map((a) => (a.id === id ? { ...a, completed: !a.completed } : a)));
     }
   };
 
@@ -772,6 +886,10 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
     { id: "friends", label: "Amigos", icon: <MessageCircle size={24} /> },
     { id: "groups", label: "Grupos", icon: <Users size={24} /> },
   ];
+
+  if (showProfile) {
+    return <ProfileView user={user} onBack={() => setShowProfile(false)} onLogout={onLogout} />;
+  }
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
@@ -810,14 +928,17 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
 
       {/* Thin top bar */}
       <div className="flex items-center justify-between px-5 py-2.5 bg-primary/10 border-b border-primary/10 shrink-0">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowProfile(true)}
+          className="flex items-center gap-2 rounded-full pr-2 hover:opacity-80 active:scale-95 transition-all"
+        >
           <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
             <Heart size={12} className="text-white" />
           </div>
           <span className="text-sm font-semibold text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {userName.split(" ")[0]}
           </span>
-        </div>
+        </button>
         <button
           onClick={() => setHelpOpen(true)}
           className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border transition-colors font-semibold text-base"
@@ -828,7 +949,7 @@ function SeniorApp({ userName, onLogout }: { userName: string; onLogout: () => v
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {tab === "exercises" && <ExercisesView exercises={exercises} onToggle={toggleExercise} userName={userName} />}
+        {tab === "exercises" && <ExercisesView exercises={exercises} onToggle={toggleExercise} userName={userName} assigned={assigned} onToggleAssigned={toggleAssigned} />}
         {tab === "friends" && (
           <FriendsView
             autoOpenTutor={openTutorChat}
@@ -899,7 +1020,7 @@ export default function App() {
         {restoring ? null : !session ? (
           <LoginScreen onLogin={handleLogin} />
         ) : session.role === "senior" ? (
-          <SeniorApp userName={session.name} onLogout={handleLogout} />
+          <SeniorApp user={session} onLogout={handleLogout} />
         ) : (
           <TutorApp tutorName={session.name} onLogout={handleLogout} />
         )}
