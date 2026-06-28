@@ -1011,10 +1011,6 @@ export default function App() {
           <span className="text-sm font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-2 bg-foreground rounded-sm opacity-80" />
-            <div className="w-1 h-1 bg-foreground rounded-full opacity-80" />
-          </div>
         </div>
 
         {restoring ? null : !session ? (
