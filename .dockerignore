@@ -1,0 +1,16 @@
+# Keep the build context small and avoid copying host artifacts into the image.
+.git
+.gitignore
+node_modules
+frontend/node_modules
+frontend/dist
+**/__pycache__
+**/*.pyc
+.venv
+venv
+.env
+.env.*
+!.env.example
+.vite
+*.log
+README.md

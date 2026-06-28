@@ -51,6 +51,29 @@ cp .env.example .env
 docker compose up --build
 ```
 
+## Publicar online (link público)
+
+Para compartilhar o app por um **link** (qualquer pessoa abre no navegador, sem
+instalar nada), o repositório já vem pronto para um deploy de **um único serviço**
+no [Render](https://render.com) (plano grátis): o FastAPI serve a API **e** a tela
+React já compilada, usando SQLite (sem banco separado) com os dados de demonstração
+populados automaticamente.
+
+Passo a passo (só na primeira vez):
+
+1. Garanta que o código está no GitHub: `git push`.
+2. Crie uma conta grátis em <https://render.com> e conecte seu GitHub.
+3. No painel: **New +** → **Blueprint** → escolha este repositório. O Render lê o
+   `render.yaml` e cria o serviço sozinho.
+4. Aguarde o build (~3–5 min). No final o Render mostra a URL pública
+   (ex.: `https://vidaativa.onrender.com`) — é esse link que você compartilha.
+
+Detalhes do plano grátis:
+
+- Na primeira visita após um tempo ocioso o serviço "acorda" em ~30–50s; depois fica rápido.
+- O SQLite é efêmero: a cada novo deploy os dados voltam ao estado de demonstração (ótimo para demos).
+- Rodar localmente continua igual (`docker compose up --build`, com Postgres). O deploy usa o `Dockerfile` da raiz.
+
 ## Contas de demonstração
 
 A conta **totalmente populada** (com amigos, grupos e mensagens) é a da Maria:
@@ -62,8 +85,7 @@ A conta **totalmente populada** (com amigos, grupos e mensagens) é a da Maria:
 | Tutor | `ana@exemplo.com` | `admin123` |
 | Tutor | `carlos@exemplo.com` | `admin123` |
 
-> A interface do **tutor** ainda usa dados de exemplo (mock) — a integração dela
-> com o backend é o próximo passo. A interface do **idoso** já está 100% ligada à API.
+> As duas interfaces (**idoso** e **tutor**) já estão 100% ligadas à API.
 
 ## Estrutura do repositório
 

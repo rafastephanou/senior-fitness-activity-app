@@ -1,8 +1,10 @@
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
@@ -56,3 +58,13 @@ app.include_router(tutor.router, prefix=API_PREFIX)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve the built React app so a single service hosts both API and UI (the cloud
+# demo). Mounted last so it only catches paths the API didn't. In local dev the
+# frontend runs separately under Vite, so this directory won't exist and is skipped.
+_static_dir = os.environ.get(
+    "STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "static")
+)
+if os.path.isdir(_static_dir):
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="spa")
