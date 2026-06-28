@@ -12,6 +12,7 @@ import {
   Send,
   ChevronLeft,
   MessageCircle,
+  LogOut,
   Check,
   Clock,
   Flame,
@@ -1220,7 +1221,7 @@ function PageEventos() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function TutorApp({ tutorName }: { tutorName: string; onLogout?: () => void }) {
+export function TutorApp({ tutorName, onLogout }: { tutorName: string; onLogout?: () => void }) {
   const [tab, setTab] = useState<TutorTab>("home");
   const [seniors, setSeniors] = useState<TutorSenior[]>([]);
 
@@ -1249,10 +1250,11 @@ export function TutorApp({ tutorName }: { tutorName: string; onLogout?: () => vo
           </span>
         </div>
         <button
-          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors font-semibold text-base"
-          style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          onClick={onLogout}
+          aria-label="Sair"
+          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
         >
-          ?
+          <LogOut size={16} />
         </button>
       </div>
 
