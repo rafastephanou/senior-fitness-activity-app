@@ -1,13 +1,13 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from ...core.database import get_db
 from ...models.activity import Activity, RunningActivity, RunningActivityCompletion
 from ...models.exercise import ExerciseCompletion
-from ...models.social import Group, GroupMember, GroupMessage
+from ...models.social import DirectMessage, Friendship, Group, GroupMember, GroupMessage
 from ...models.tutor import Announcement, LiveEvent
 from ...models.user import User
 from ...schemas.tutor import (
@@ -104,6 +104,77 @@ def list_seniors(db: Session = Depends(get_db)):
             )
         )
     return out
+
+
+# ─── Direct chat with a senior ────────────────────────────────────────────────
+
+def _get_senior(db: Session, senior_id: int) -> User:
+    senior = db.get(User, senior_id)
+    if senior is None or senior.role != "senior":
+        raise HTTPException(status_code=404, detail="Senior not found")
+    return senior
+
+
+def _senior_chat_messages(db: Session, tutor: User, senior: User) -> list[TutorChatMessageOut]:
+    rows = db.scalars(
+        select(DirectMessage)
+        .where(
+            or_(
+                (DirectMessage.sender_id == tutor.id) & (DirectMessage.recipient_id == senior.id),
+                (DirectMessage.sender_id == senior.id) & (DirectMessage.recipient_id == tutor.id),
+            )
+        )
+        .order_by(DirectMessage.created_at, DirectMessage.id)
+    ).all()
+    out = []
+    for m in rows:
+        from_tutor = m.sender_id == tutor.id
+        out.append(
+            TutorChatMessageOut(
+                id=m.id,
+                sender="tutor" if from_tutor else "member",
+                senderName="Você" if from_tutor else senior.name,
+                text=m.text,
+                time=m.time_label,
+            )
+        )
+    return out
+
+
+@router.get("/seniors/{senior_id}/messages", response_model=list[TutorChatMessageOut])
+def list_senior_messages(senior_id: int, db: Session = Depends(get_db), tutor: User = Depends(require_tutor)):
+    senior = _get_senior(db, senior_id)
+    return _senior_chat_messages(db, tutor, senior)
+
+
+@router.post("/seniors/{senior_id}/messages", response_model=TutorChatMessageOut)
+def send_senior_message(senior_id: int, payload: SendMessageIn, db: Session = Depends(get_db), tutor: User = Depends(require_tutor)):
+    senior = _get_senior(db, senior_id)
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty message")
+
+    label = dt.datetime.now().strftime("%H:%M")
+    msg = DirectMessage(sender_id=tutor.id, recipient_id=senior.id, text=text, time_label=label)
+    db.add(msg)
+
+    # Make sure the senior is connected to this tutor so the message also shows up
+    # in their friends chat, and bump the unread badge on their side.
+    friendship = db.scalar(
+        select(Friendship).where(
+            Friendship.owner_id == senior.id, Friendship.friend_id == tutor.id
+        )
+    )
+    if friendship is None:
+        db.add(Friendship(owner_id=senior.id, friend_id=tutor.id, unread=1))
+    else:
+        friendship.unread += 1
+
+    db.commit()
+    db.refresh(msg)
+    return TutorChatMessageOut(
+        id=msg.id, sender="tutor", senderName="Você", text=msg.text, time=msg.time_label
+    )
 
 
 # ─── Groups ───────────────────────────────────────────────────────────────────

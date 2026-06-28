@@ -273,6 +273,13 @@ export const api = {
 
   // ── Tutor ──
   listSeniors: () => request<TutorSenior[]>("/tutor/seniors"),
+  listSeniorMessages: (seniorId: number) =>
+    request<TutorChatMessage[]>(`/tutor/seniors/${seniorId}/messages`),
+  sendSeniorMessage: (seniorId: number, text: string) =>
+    request<TutorChatMessage>(`/tutor/seniors/${seniorId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   listTutorGroups: () => request<TutorGroup[]>("/tutor/groups"),
   createTutorGroup: (data: { name: string; emoji: string; description: string }) =>
     request<TutorGroup>("/tutor/groups", { method: "POST", body: JSON.stringify(data) }),

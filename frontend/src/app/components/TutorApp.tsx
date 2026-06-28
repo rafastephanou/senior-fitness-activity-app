@@ -11,6 +11,7 @@ import {
   UserMinus,
   Send,
   ChevronLeft,
+  MessageCircle,
   Check,
   Clock,
   Flame,
@@ -99,6 +100,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ─── Início ───────────────────────────────────────────────────────────────────
 
 function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSenior[] }) {
+  const [activeSenior, setActiveSenior] = useState<TutorSenior | null>(null);
+
+  if (activeSenior) {
+    return (
+      <TutorSeniorChat
+        senior={activeSenior}
+        index={Math.max(0, seniors.findIndex((s) => s.id === activeSenior.id))}
+        onBack={() => setActiveSenior(null)}
+      />
+    );
+  }
+
   const withAlerts = seniors.filter((s) => s.alert);
   const activeToday = seniors.filter((s) => s.exercisesToday > 0).length;
   const topStreak = seniors.length ? seniors.reduce((a, b) => (a.streak > b.streak ? a : b)) : null;
@@ -143,7 +156,7 @@ function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSen
             <SectionLabel>⚠️ Requerem atenção</SectionLabel>
             <div className="space-y-2">
               {withAlerts.map((s, idx) => (
-                <div key={s.id} className="bg-[#FFFBF0] border border-[#F5A623]/30 rounded-2xl p-4 flex items-center gap-3">
+                <button key={s.id} onClick={() => setActiveSenior(s)} className="w-full text-left bg-[#FFFBF0] border border-[#F5A623]/30 rounded-2xl p-4 flex items-center gap-3 hover:border-[#F5A623]/60 active:scale-[0.99] transition-all">
                   <Avatar initials={s.initials} size="sm" index={idx} />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.name}</p>
@@ -153,7 +166,7 @@ function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSen
                     <span className="text-xs font-bold text-[#B37A10]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{s.exercisesThisWeek}/7</span>
                     <span className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>esta semana</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -177,7 +190,7 @@ function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSen
           <SectionLabel>Todos os sêniores</SectionLabel>
           <div className="space-y-2">
             {seniors.map((s, idx) => (
-              <div key={s.id} className="bg-card rounded-2xl p-4 border border-border flex items-center gap-3">
+              <button key={s.id} onClick={() => setActiveSenior(s)} className="w-full text-left bg-card rounded-2xl p-4 border border-border flex items-center gap-3 hover:border-[#4A52B2]/40 hover:bg-[#FAFAFE] active:scale-[0.99] transition-all">
                 <Avatar initials={s.initials} size="sm" index={idx} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -190,7 +203,8 @@ function PageHome({ tutorName, seniors }: { tutorName: string; seniors: TutorSen
                     {s.age} anos · {s.lastActive} · 🔥 {s.streak} dias
                   </p>
                 </div>
-              </div>
+                <MessageCircle size={18} className="text-[#4A52B2] shrink-0" />
+              </button>
             ))}
           </div>
         </div>
@@ -333,6 +347,98 @@ function TutorGroupChat({ group, seniors, onBack, onUpdated }: { group: TutorGro
               {msg.sender === "member" && (
                 <p className="text-xs font-semibold text-[#4A52B2] mb-1">{msg.senderName}</p>
               )}
+              <p>{msg.text}</p>
+              <p className={`text-xs mt-1 ${msg.sender === "tutor" ? "text-white/60" : "text-muted-foreground"}`}>{msg.time}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-4 py-3 bg-card border-t border-border shrink-0">
+        <div className="flex items-center gap-3 bg-muted rounded-2xl px-4 py-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            placeholder="Escreva uma mensagem..."
+            className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-base"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim()}
+            className="w-9 h-9 bg-[#4A52B2] text-white rounded-full flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tutor ↔ Senior direct chat ───────────────────────────────────────────────
+
+function TutorSeniorChat({ senior, index, onBack }: { senior: TutorSenior; index: number; onBack: () => void }) {
+  const [messages, setMessages] = useState<TutorChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.listSeniorMessages(senior.id)
+      .then(setMessages)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [senior.id]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const sendMessage = async () => {
+    const t = input.trim();
+    if (!t) return;
+    setInput("");
+    try {
+      const msg = await api.sendSeniorMessage(senior.id, t);
+      setMessages((prev) => [...prev, msg]);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Chat header */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-card border-b border-border shrink-0">
+        <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-foreground shrink-0">
+          <ChevronLeft size={24} />
+        </button>
+        <Avatar initials={senior.initials} size="sm" index={index} />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-foreground leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{senior.name}</p>
+          <p className="text-xs text-muted-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{senior.age} anos · {senior.lastActive}</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-background">
+        {!loading && messages.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground py-8" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Nenhuma mensagem ainda. Diga olá para {senior.name.split(" ")[0]}! 👋
+          </p>
+        )}
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.sender === "tutor" ? "justify-end" : "justify-start"}`}>
+            <div
+              className={`max-w-[78%] px-4 py-3 rounded-2xl text-base leading-relaxed ${
+                msg.sender === "tutor"
+                  ? "bg-[#4A52B2] text-white rounded-tr-sm"
+                  : "bg-card text-card-foreground border border-border rounded-tl-sm"
+              }`}
+              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
               <p>{msg.text}</p>
               <p className={`text-xs mt-1 ${msg.sender === "tutor" ? "text-white/60" : "text-muted-foreground"}`}>{msg.time}</p>
             </div>
